@@ -8,7 +8,7 @@ run `orvix init` there instead — it writes a different, much shorter file.)
 ```bash
 npm run build      # copies grammars into grammars/, then bundles the CLI
 npx tsc --noEmit
-npm test           # vitest, currently 235 tests
+npm test           # vitest, currently 246 tests
 ```
 
 All three must pass. Never report work as done without running them.
@@ -70,6 +70,20 @@ file, never the run.
 Grammars must carry the `dylink.0` wasm section. `tree-sitter-wasms` still ships the legacy
 `dylink` section, which web-tree-sitter 0.26 rejects with an empty error message — that is why
 grammars come from `@vscode/tree-sitter-wasm`.
+
+## Releasing
+
+1. Move the `## [Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section in
+   `CHANGELOG.md`, and update the link definitions at the bottom.
+2. `npm version X.Y.Z` — this bumps `package.json` and creates the `vX.Y.Z` tag.
+3. `git push --follow-tags`.
+
+Pushing the tag runs `.github/workflows/release.yml`: it refuses to continue if the tag and
+`package.json` disagree, runs the full checks, and publishes a GitHub release using that
+CHANGELOG section as the notes, with the packed tarball attached. A version with no CHANGELOG
+section falls back to notes generated from the commits.
+
+Publishing to npm stays manual: `npm publish --access public`.
 
 ## Conventions
 
