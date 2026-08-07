@@ -41,8 +41,10 @@ First release.
   project-unique exported name. A call through a receiver reaches only methods; a bare call
   reaches only non-methods. Where several definitions remain plausible no edge is drawn, and
   `orvix index` reports how many call sites that affected.
-- Measured on this repository: 90% fewer tokens to target a function for editing, 89% to take in
-  the project's shape.
+- Measured on this repository with `npm run measure`: ~89% fewer tokens to target a function for
+  editing, ~91% to take in the project's shape. Token counts are estimated at 3.5 characters per
+  token rather than produced by a tokeniser; the estimate is applied to both sides, so the ratio
+  holds even though the absolute figures are approximate.
 
 ### Known limits
 

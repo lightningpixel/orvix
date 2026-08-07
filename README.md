@@ -25,12 +25,19 @@ $ orvix who-calls l00y  # every symbol that calls parse
 
 ## Measured savings
 
-Both figures are from running Orvix on its own source:
+Measured against Orvix's own source. Reproduce with `npm run measure`:
 
 | Task | Reading files | With orvix | Saved |
 |---|---|---|---|
-| Target one function to edit it | 1 671 tokens | 170 tokens | **90 %** |
-| Take in the whole project's shape | 17 857 tokens | 1 975 tokens | **89 %** |
+| Target one function (`resolveModule`) to edit it | ~1,671 | ~187 | **89%** |
+| Take in the whole project's shape | ~21,368 | ~1,995 | **91%** |
+
+Three things to read fairly. Counts are **estimated at 3.5 characters per token**, not produced
+by a tokeniser — the same estimate is applied to both sides, so the ratio holds even though the
+absolute numbers are rough. They are a snapshot of 26 source files and drift as the repository
+grows; `npm run measure` regenerates the table. And the first row assumes the agent already
+knows which symbol it wants — if it has to find its bearings first, it pays for the second row
+once, then the first row for every symbol after that.
 
 ## Install
 

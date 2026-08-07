@@ -41,6 +41,7 @@
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
     "grammars": "node scripts/copy-grammars.mjs",
+    "measure": "node scripts/measure.mjs",
     "build": "npm run grammars && tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
