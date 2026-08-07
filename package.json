@@ -1,0 +1,61 @@
+{
+  "name": "orvix",
+  "version": "0.1.0",
+  "description": "Semantic code map for AI agents — index a codebase once, address every symbol by a short code, read only what you need.",
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "claude",
+    "tokens",
+    "code-map",
+    "tree-sitter",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "lightningpixel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lightningpixel/orvix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lightningpixel/orvix/issues"
+  },
+  "homepage": "https://github.com/lightningpixel/orvix#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "orvix": "dist/main.js"
+  },
+  "files": [
+    "dist",
+    "queries",
+    "grammars",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "scripts": {
+    "grammars": "node scripts/copy-grammars.mjs",
+    "build": "npm run grammars && tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ignore": "^6.0.2",
+    "web-tree-sitter": "^0.26.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

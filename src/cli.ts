@@ -1,0 +1,103 @@
+import { Command } from "commander";
+import pkg from "../package.json" with { type: "json" };
+import { runIndex } from "./commands/indexCommand.js";
+import { runMap } from "./commands/map.js";
+import {
+  runCalls,
+  runFind,
+  runShow,
+  runWhoCalls,
+} from "./commands/lookupCommands.js";
+import type { CommandResult } from "./commands/session.js";
+
+/**
+ * Builds the CLI without running it, so tests can inspect the command tree.
+ * Behaviour lives in src/commands/ — this file is wiring only.
+ */
+export function buildCli(): Command {
+  const program = new Command();
+
+  program
+    .name("orvix")
+    .description(
+      "Semantic code map for AI agents. Index once, then read only the symbols you need.",
+    )
+    .version(pkg.version);
+
+  program
+    .command("index")
+    .description("build or refresh the semantic index for a project")
+    .argument("[path]", "project root", ".")
+    .option("--json", "machine-readable output")
+    .action(report((path, options) => runIndex(path, options)));
+
+  program
+    .command("map")
+    .description("print the symbol tree, ranked and fitted to a token budget")
+    .argument("[path]", "project root", ".")
+    .option("-b, --budget <tokens>", "approximate token budget", "2000")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((path, options) => runMap(path, options)));
+
+  program
+    .command("show")
+    .description("print the exact source of one symbol")
+    .argument("<id>", "symbol id (short hash prefix) or name")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((id, options) => runShow(options.path, id, options)));
+
+  program
+    .command("find")
+    .description("search symbols by name or signature")
+    .argument("<query>", "search query")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((query, options) => runFind(options.path, query, options)));
+
+  program
+    .command("who-calls")
+    .description("list the symbols that call this one")
+    .argument("<id>", "symbol id or name")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((id, options) => runWhoCalls(options.path, id, options)));
+
+  program
+    .command("calls")
+    .description("list the symbols this one calls")
+    .argument("<id>", "symbol id or name")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((id, options) => runCalls(options.path, id, options)));
+
+  return program;
+}
+
+/**
+ * Prints a command's result and sets the exit code.
+ *
+ * Failures go to stderr so an agent piping stdout never mistakes an error
+ * message for an answer.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function report(run: (argument: string, options: any) => Promise<CommandResult>) {
+  return async (argument: string, options: unknown): Promise<void> => {
+    try {
+      const { output, ok } = await run(argument, options);
+      if (ok) console.log(output);
+      else {
+        console.error(output);
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+  };
+}
