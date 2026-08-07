@@ -1,0 +1,9 @@
+# Normalise every text file to LF in the repository, whatever the contributor's
+# platform or core.autocrlf setting.
+#
+# This matters most for the CI workflows: their `run:` blocks become shell
+# scripts on Linux runners, and a stray CR turns into `$'\r': command not found`.
+* text=auto eol=lf
+
+# Compiled grammars must never be touched.
+*.wasm binary
