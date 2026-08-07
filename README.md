@@ -35,8 +35,15 @@ Both figures are from running Orvix on its own source:
 ## Install
 
 ```bash
-npm install -g orvix     # or: npx orvix map
+npm install -g orvix
+cd your-project
+orvix init
 ```
+
+`orvix init` asks once which coding agents you use, writes the instructions they read into
+`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, adds `.orvix/` to your `.gitignore`, and builds the
+index. Your answer is remembered in `~/.orvix/config.json`, so later projects only need
+`orvix init` with no questions.
 
 Node 20 or later. Pure JavaScript and WebAssembly — no native build step, nothing to compile.
 
@@ -44,6 +51,7 @@ Node 20 or later. Pure JavaScript and WebAssembly — no native build step, noth
 
 | Command | What it does |
 |---|---|
+| `orvix init [path]` | Set a project up for agents; `--agent claude codex cursor gemini` skips the prompt |
 | `orvix index [path]` | Build or refresh the cache; prints what changed |
 | `orvix map [path]` | The symbol tree, ranked, fitted to `--budget <tokens>` (default 2000) |
 | `orvix show <id\|name>` | The exact source of one symbol |
@@ -69,21 +77,31 @@ enough to need five, ids quoted earlier keep resolving.
 
 ## For agents
 
-Paste this into your `CLAUDE.md`, `AGENTS.md`, or equivalent:
+`orvix init` writes this for you, between `<!-- orvix:start -->` and `<!-- orvix:end -->`
+markers so re-running it updates the block in place instead of stacking copies. Anything else in
+the file is left untouched. Reproduced here so you know what lands in your repository:
 
 ```markdown
-## Codebase navigation
+## Codebase navigation (orvix)
 
-This project is indexed by orvix. Prefer it over grep and over reading whole files.
+This project is indexed by orvix. Prefer it over `grep` and over reading whole files.
 
 - `orvix map --budget 2000` — the project's symbols, most important first
-- `orvix show <id>` — one symbol's exact source (do not read the whole file)
+- `orvix show <id>` — one symbol's exact source. Do not read the whole file.
 - `orvix find <name>` — locate a symbol when you don't have its id
-- `orvix who-calls <id>` — find every caller before changing a signature
-- `orvix calls <id>` — see what a function depends on
+- `orvix who-calls <id>` — every caller. Run this before changing a signature.
+- `orvix calls <id>` — what a symbol depends on
 
-Ids are stable across edits; reuse one you were given earlier rather than re-running `map`.
+Ids are short and stable across edits: reuse an id you were given earlier rather than
+re-running `map`. Names work too — `orvix show validate`, `orvix show Service.validate`.
+
+Do not use orvix for files outside TypeScript, TSX, JavaScript, Python, Go and Rust —
+read those directly. Do not use it for anything that is not a symbol: string literals,
+configuration keys, comments, TODOs. Use `grep` for those.
 ```
+
+The last paragraph matters as much as the rest: without it an agent runs `orvix show` on a JSON
+file, gets nothing, and concludes the tool is broken instead of just reading the file.
 
 ## Languages
 

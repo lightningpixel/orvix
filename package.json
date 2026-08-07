@@ -35,9 +35,11 @@
     "grammars",
     "README.md",
     "LICENSE",
-    "NOTICE.md"
+    "NOTICE.md",
+    "scripts/postinstall.mjs"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "grammars": "node scripts/copy-grammars.mjs",
     "build": "npm run grammars && tsup",
     "dev": "tsup --watch",

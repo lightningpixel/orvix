@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Report every broken combination, not just the first.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22, 24]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      # Copies the grammars, then bundles the CLI.
+      - run: npm run build
+
+      - run: npx tsc --noEmit
+
+      - run: npm test
+
+  package:
+    name: packaged install
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # Installing the real tarball is the only way to catch a file missing
+      # from `files`, a postinstall that breaks the install, or grammars that
+      # cannot be located from an installed layout.
+      - name: Pack and install
+        run: |
+          npm pack --pack-destination /tmp
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install /tmp/orvix-*.tgz
+
+      - name: Smoke test the installed CLI
+        env:
+          HOME: /tmp/consumer/home
+        run: |
+          cd /tmp/consumer
+          mkdir -p home demo/src
+          printf 'export function validate(email: string) {\n  return email;\n}\n' > demo/src/auth.ts
+          printf 'import { validate } from "./auth";\nexport function login(e: string) {\n  return validate(e);\n}\n' > demo/src/login.ts
+
+          ./node_modules/.bin/orvix --version
+          ./node_modules/.bin/orvix init demo --agent claude
+          test -f demo/CLAUDE.md
+          grep -q '.orvix/' demo/.gitignore
+
+          ./node_modules/.bin/orvix map demo | tee map.txt
+          grep -q 'function validate' map.txt
+
+          ./node_modules/.bin/orvix who-calls validate -p demo | tee callers.txt
+          grep -q 'login' callers.txt

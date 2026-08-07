@@ -7,7 +7,7 @@ describe("cli", () => {
     expect(buildCli().version()).toBe(pkg.version);
   });
 
-  test("registers the six v1 commands", () => {
+  test("registers the v1 commands", () => {
     const names = buildCli()
       .commands.map((c) => c.name())
       .sort();
@@ -16,6 +16,7 @@ describe("cli", () => {
       "calls",
       "find",
       "index",
+      "init",
       "map",
       "show",
       "who-calls",

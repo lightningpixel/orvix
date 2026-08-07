@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import pkg from "../package.json" with { type: "json" };
 import { runIndex } from "./commands/indexCommand.js";
+import { runInit } from "./commands/init.js";
+import { askForAgents, isInteractive } from "./commands/prompt.js";
 import { runMap } from "./commands/map.js";
 import {
   runCalls,
@@ -23,6 +25,27 @@ export function buildCli(): Command {
       "Semantic code map for AI agents. Index once, then read only the symbols you need.",
     )
     .version(pkg.version);
+
+  program
+    .command("init")
+    .description(
+      "set this project up for agents: write their instruction files and build the index",
+    )
+    .argument("[path]", "project root", ".")
+    .option(
+      "-a, --agent <names...>",
+      "agents to configure (claude, codex, cursor, gemini); skips the prompt",
+    )
+    .action(
+      report((path, options) =>
+        runInit(path, {
+          agent: options.agent,
+          // Only offer to ask when there is a terminal to ask on. Without
+          // this a scripted run would block forever on a hidden question.
+          prompt: isInteractive() ? askForAgents : undefined,
+        }),
+      ),
+    );
 
   program
     .command("index")
