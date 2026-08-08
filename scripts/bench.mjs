@@ -22,6 +22,32 @@ if (!existsSync(QUERY)) {
 }
 
 /**
+ * Refuse to time a lookup that finds nothing.
+ *
+ * Without an index the query path exits almost immediately, and the benchmark
+ * would report its best number ever for doing no work at all. `.orvix/` is not
+ * committed, so a fresh checkout lands in exactly that state.
+ */
+function requireWorkingIndex() {
+  if (existsSync(MAIN)) {
+    execFileSync(process.execPath, [MAIN, "index", "."], { stdio: "ignore" });
+  }
+
+  const probe = execFileSync(
+    process.execPath,
+    [QUERY, "find", "resolveModule", "--path", ".", "--json"],
+    { encoding: "utf8" },
+  );
+
+  if (JSON.parse(probe).length === 0) {
+    console.error("the query path returned nothing — refusing to time an empty lookup");
+    process.exit(1);
+  }
+}
+
+requireWorkingIndex();
+
+/**
  * @param {string[]} args
  * @returns {number} milliseconds
  */

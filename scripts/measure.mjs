@@ -41,6 +41,11 @@ function sourceFiles(dir) {
 /** @type {Row[]} */
 const rows = [];
 
+// Queries answer from the prebuilt index and never parse on their own, and
+// `.orvix/` is not committed — so a fresh checkout has nothing to read and
+// every measurement below would be taken against an empty index.
+orvix("index", ".");
+
 // Scenario A — the agent already knows which symbol it needs to change.
 // Without that, it pays for `map` first; see scenario B for that cost.
 const target = "resolveModule";
