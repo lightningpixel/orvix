@@ -34,6 +34,27 @@ jobs:
 
       - run: npm test
 
+  benchmark:
+    name: synthetic benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # Guards the trade the hooks make. It fails when a compression stops
+      # preserving what a task needed, not merely when the saving shrinks —
+      # tokens saved is worthless on its own, since returning nothing would
+      # score perfectly.
+      - run: node benchmarks/run.mjs --mode synthetic
+
   package:
     name: packaged install
     runs-on: ubuntu-latest
@@ -72,6 +93,24 @@ jobs:
           ./node_modules/.bin/orvix init demo --agent claude
           test -f demo/CLAUDE.md
           grep -q '.orvix/' demo/.gitignore
+
+          # The hooks are the integration. A missing entry in `files` would
+          # leave a project configured to run scripts that were never shipped.
+          test -f demo/.claude/hooks/orvix-dirty.mjs
+          test -f demo/.claude/hooks/orvix-compress.mjs
+          test -f demo/.claude/hooks/orvix-reconcile.mjs
+          grep -q 'orvix-compress' demo/.claude/settings.json
+
+          # The query path is what the hooks call, so it has to work from an
+          # installed layout too.
+          ./node_modules/.bin/orvix-query find validate --path demo | tee q.txt
+          grep -q 'validate' q.txt
+
+          # An edit marked dirty must be picked up by the next query alone.
+          printf 'export function validate(email: string) {\n  return email.trim();\n}\nexport function extra() {}\n' > demo/src/auth.ts
+          printf '%s\n' 'src/auth.ts' > demo/.orvix/dirty
+          ./node_modules/.bin/orvix-query find extra --path demo | tee inc.txt
+          grep -q 'extra' inc.txt
 
           ./node_modules/.bin/orvix map demo | tee map.txt
           grep -q 'function validate' map.txt

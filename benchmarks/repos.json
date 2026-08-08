@@ -1,0 +1,11 @@
+{
+  "description": "Repositories the live arm runs against. Pinned to a commit so a result stays reproducible: a moving branch would make yesterday's number unrepeatable.",
+  "repos": [
+    {
+      "name": "orvix",
+      "url": "https://github.com/lightningpixel/orvix.git",
+      "ref": "b626e08",
+      "language": "typescript"
+    }
+  ]
+}

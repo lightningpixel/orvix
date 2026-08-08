@@ -1,6 +1,6 @@
-import { allSymbols } from "../core/indexer.js";
-import { buildCallGraph } from "../core/resolve.js";
-import { openProject, type CommandResult } from "./session.js";
+import { resolve } from "node:path";
+import { allSymbols, buildIndex } from "../core/indexer.js";
+import type { CommandResult } from "../query/session.js";
 
 export interface IndexCommandOptions {
   json?: boolean;
@@ -11,17 +11,15 @@ export async function runIndex(
   path: string,
   options: IndexCommandOptions = {},
 ): Promise<CommandResult> {
-  const session = await openProject(path);
-  const stats = session.stats!;
-  const graph = buildCallGraph(session.index);
+  const { index, stats, skippedFiles, graph } = await buildIndex(resolve(path));
 
   const summary = {
-    files: Object.keys(session.index.files).length,
-    symbols: allSymbols(session.index).length,
+    files: Object.keys(index.files).length,
+    symbols: allSymbols(index).length,
     edges: graph.edges.length,
     ambiguous: graph.ambiguous.length,
     ...stats,
-    skippedFiles: session.skippedFiles ?? [],
+    skippedFiles,
   };
 
   if (options.json) {
@@ -34,9 +32,7 @@ export async function runIndex(
   ];
 
   if (stats.skipped > 0) {
-    lines.push(
-      `skipped ${stats.skipped}: ${summary.skippedFiles.slice(0, 5).join(", ")}`,
-    );
+    lines.push(`skipped ${stats.skipped}: ${skippedFiles.slice(0, 5).join(", ")}`);
   }
   if (graph.ambiguous.length > 0) {
     lines.push(`${graph.ambiguous.length} call sites too ambiguous to link`);

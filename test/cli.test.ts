@@ -15,6 +15,7 @@ describe("cli", () => {
     expect(names).toEqual([
       "calls",
       "find",
+      "gain",
       "index",
       "init",
       "map",

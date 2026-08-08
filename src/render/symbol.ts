@@ -1,8 +1,6 @@
 import { displayLength } from "../core/ids.js";
-import { allSymbols } from "../core/indexer.js";
-import { qualifiedName } from "../core/lookup.js";
-import type { CallGraph } from "../core/resolve.js";
-import type { IndexedSymbol, OrvixIndex } from "../types.js";
+import { qualifiedName } from "../core/symbols.js";
+import type { IndexedSymbol, PersistedGraph, SymbolTable } from "../types.js";
 
 /**
  * Prints exactly one symbol's source, with a header locating it.
@@ -23,16 +21,16 @@ export function renderSource(symbol: IndexedSymbol, fileSource: string): string 
  */
 export function renderList(
   symbols: IndexedSymbol[],
-  index: OrvixIndex,
-  graph: CallGraph,
+  table: SymbolTable,
+  graph: PersistedGraph,
 ): string {
   if (symbols.length === 0) return "none";
 
-  const idWidth = displayLength(allSymbols(index).map((symbol) => symbol.id));
+  const idWidth = displayLength(Object.keys(table.symbols));
 
   return symbols
     .map((symbol) => {
-      const callers = graph.callers.get(symbol.id)?.size ?? 0;
+      const callers = graph.callers[symbol.id]?.length ?? 0;
       const inbound = callers > 0 ? ` ←${callers}` : "";
       const marker = symbol.exported ? "*" : " ";
 

@@ -15,13 +15,22 @@ import {
   supportedExtensions,
   type LanguageDef,
 } from "./languages.js";
-import { emptyIndex, loadIndex, saveIndex } from "./store.js";
+import { projectIndex } from "./project.js";
+import { rankSymbols } from "./rank.js";
+import { buildCallGraph, type CallGraph } from "./resolve.js";
+import { emptyIndex, loadIndex, saveIndex, saveProjection } from "./store.js";
+import { allSymbols } from "./symbols.js";
+
+export { allSymbols };
 
 export interface BuildResult {
   index: OrvixIndex;
   stats: IndexStats;
   /** Files that could not be indexed, so the caller can report them. */
   skippedFiles: string[];
+  /** Derived here rather than per query, and written to disk alongside. */
+  graph: CallGraph;
+  ranks: Map<string, number>;
 }
 
 /**
@@ -96,38 +105,19 @@ export async function buildIndex(
 
     // One unreadable file — a language registered before its query exists, a
     // grammar that fails to load — must not cost the whole index run.
-    let facts;
     try {
-      facts = await extract(source, language, path);
+      next.files[path] = await buildFileEntry(
+        path,
+        language,
+        source,
+        { mtimeMs, size },
+        extract,
+      );
     } catch {
       stats.skipped += 1;
       skippedFiles.push(path);
       continue;
     }
-
-    // A getter/setter pair or an overload set share file, name and kind, so
-    // repeats are numbered. The first keeps the plain identity, which is what
-    // keeps its id stable when a sibling is later added.
-    const occurrences = new Map<string, number>();
-
-    next.files[path] = {
-      language: language.id,
-      mtimeMs,
-      size,
-      symbols: facts.symbols.map((symbol): IndexedSymbol => {
-        const identity = symbolIdentity(path, symbol);
-        const seen = occurrences.get(identity) ?? 0;
-        occurrences.set(identity, seen + 1);
-
-        return {
-          ...symbol,
-          id: hashIdentity(seen === 0 ? identity : `${identity}#${seen + 1}`),
-          file: path,
-        };
-      }),
-      references: facts.references,
-      imports: facts.imports,
-    };
 
     if (cached) stats.updated += 1;
     else stats.added += 1;
@@ -137,8 +127,57 @@ export async function buildIndex(
     (path) => !(path in next.files),
   ).length;
 
+  // The graph and ranks are derived here, once, and written alongside the
+  // facts. Deriving them per query was affordable at 226 symbols and is not at
+  // 34 000: it made every lookup pay for the size of the project.
+  const graph = buildCallGraph(next);
+  const ranks = rankSymbols(next, graph);
+
   await saveIndex(root, next);
-  return { index: next, stats, skippedFiles };
+  await saveProjection(root, projectIndex(next, graph, ranks));
+
+  return { index: next, stats, skippedFiles, graph, ranks };
+}
+
+/**
+ * Extracts one file's facts and turns them into an index entry.
+ *
+ * Shared with the incremental path so a file reindexed after an edit gets
+ * exactly the same ids it would from a full build — which is what lets the two
+ * be compared byte for byte.
+ */
+export async function buildFileEntry(
+  path: string,
+  language: LanguageDef,
+  source: string,
+  measured: { mtimeMs: number; size: number },
+  extract: Extractor = (text, def) => extractFile(text, def),
+): Promise<FileEntry> {
+  const facts = await extract(source, language, path);
+
+  // A getter/setter pair or an overload set share file, name and kind, so
+  // repeats are numbered. The first keeps the plain identity, which is what
+  // keeps its id stable when a sibling is later added.
+  const occurrences = new Map<string, number>();
+
+  return {
+    language: language.id,
+    mtimeMs: measured.mtimeMs,
+    size: measured.size,
+    symbols: facts.symbols.map((symbol): IndexedSymbol => {
+      const identity = symbolIdentity(path, symbol);
+      const seen = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, seen + 1);
+
+      return {
+        ...symbol,
+        id: hashIdentity(seen === 0 ? identity : `${identity}#${seen + 1}`),
+        file: path,
+      };
+    }),
+    references: facts.references,
+    imports: facts.imports,
+  };
 }
 
 interface Candidate {
@@ -176,9 +215,4 @@ function enforceLimits(candidates: Candidate[], options: BuildOptions): void {
       `${Math.round(bytes / 1e6)} MB of source found, above the ${Math.round(maxBytes / 1e6)} MB limit. ${advice}`,
     );
   }
-}
-
-/** Every symbol in the index, in file order. */
-export function allSymbols(index: OrvixIndex): IndexedSymbol[] {
-  return Object.values(index.files).flatMap((entry: FileEntry) => entry.symbols);
 }

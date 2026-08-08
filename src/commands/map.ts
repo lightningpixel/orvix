@@ -1,11 +1,15 @@
-import { allSymbols } from "../core/indexer.js";
 import { renderMap } from "../render/map.js";
-import { openProject, type CommandResult } from "./session.js";
+import {
+  allOf,
+  callersOf,
+  openQuery,
+  rankOf,
+  type CommandResult,
+} from "../query/session.js";
 
 export interface MapCommandOptions {
   budget?: string | number;
   json?: boolean;
-  refresh?: boolean;
 }
 
 const DEFAULT_BUDGET = 2000;
@@ -20,10 +24,10 @@ export async function runMap(
     return { output: `--budget must be a positive number`, ok: false };
   }
 
-  const session = await openProject(path, { refresh: options.refresh });
+  const session = await openQuery(path);
 
   if (options.json) {
-    const symbols = allSymbols(session.index).map((symbol) => ({
+    const symbols = allOf(session).map((symbol) => ({
       id: symbol.id,
       file: symbol.file,
       name: symbol.name,
@@ -33,15 +37,15 @@ export async function runMap(
       line: symbol.startLine,
       endLine: symbol.endLine,
       exported: symbol.exported,
-      callers: session.graph.callers.get(symbol.id)?.size ?? 0,
-      rank: session.ranks.get(symbol.id) ?? 0,
+      callers: callersOf(session, symbol.id).length,
+      rank: rankOf(session, symbol.id),
     }));
 
     return { output: JSON.stringify(symbols, null, 2), ok: true };
   }
 
   return {
-    output: renderMap(session.index, session.graph, session.ranks, { budget }),
+    output: renderMap(session.symbols, session.graph, { budget }),
     ok: true,
   };
 }

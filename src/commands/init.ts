@@ -1,11 +1,19 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { instructionBlock, upsertBlock } from "../agents/block.js";
-import { AGENTS, agentById, targetFiles, type AgentDef } from "../agents/registry.js";
+import { upsertHooks, type ClaudeSettings } from "../agents/claudeHooks.js";
+import {
+  AGENTS,
+  agentById,
+  targetFiles,
+  wantsHooks,
+  type AgentDef,
+} from "../agents/registry.js";
+import { hooksDir, packageRoot } from "../core/paths.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { buildIndex, allSymbols } from "../core/indexer.js";
 import { CACHE_DIR } from "../core/store.js";
-import type { CommandResult } from "./session.js";
+import type { CommandResult } from "../query/session.js";
 
 /** Asks which agents the user works with. Injected so tests never read stdin. */
 export type AgentPrompt = (agents: readonly AgentDef[]) => Promise<string[]>;
@@ -55,6 +63,8 @@ export async function runInit(
     await writeFile(join(root, file), upsertBlock(existing ?? "", block), "utf8");
     done.push(`${existing === undefined ? "created" : "updated"} ${file}`);
   }
+
+  if (wantsHooks(chosen.agents)) done.push(...(await installHooks(root)));
 
   if (await ensureIgnored(root)) done.push(`added ${IGNORE_ENTRY} to .gitignore`);
 
@@ -106,6 +116,72 @@ async function chooseAgents(options: InitOptions): Promise<Chosen> {
   }
 
   return { agents: [FALLBACK_AGENT] };
+}
+
+/**
+ * Installs the hook scripts and registers them.
+ *
+ * The scripts are copied into the project rather than referenced inside the
+ * package, and the settings entry points at the copy. That is what makes the
+ * integration portable: another agent can run the same standalone scripts
+ * without knowing anything about how Orvix was installed.
+ *
+ * The `orvix-probe.mjs` diagnostic is copied too but never registered — it is
+ * there for when a tool's response shape needs establishing, not for normal
+ * use.
+ */
+async function installHooks(root: string): Promise<string[]> {
+  const done: string[] = [];
+  const target = join(root, ".claude", "hooks");
+  await mkdir(target, { recursive: true });
+
+  const scripts = (await readdir(hooksDir())).filter((name) => name.endsWith(".mjs"));
+  for (const script of scripts) {
+    await copyFile(join(hooksDir(), script), join(target, script));
+  }
+  done.push(`installed ${scripts.length} hook scripts in .claude/hooks/`);
+
+  const settingsPath = join(root, ".claude", "settings.json");
+  const existing = await readIfPresent(settingsPath);
+
+  let parsed: ClaudeSettings = {};
+  if (existing !== undefined) {
+    try {
+      parsed = JSON.parse(existing) as ClaudeSettings;
+    } catch {
+      // Refuse to touch a settings file that is not valid JSON: rewriting it
+      // would destroy whatever the user was in the middle of.
+      done.push("left .claude/settings.json alone — it is not valid JSON");
+      return done;
+    }
+  }
+
+  const merged = `${JSON.stringify(upsertHooks(parsed), null, 2)}\n`;
+  if (merged !== existing) {
+    await writeFile(settingsPath, merged, "utf8");
+    done.push(
+      `${existing === undefined ? "created" : "updated"} .claude/settings.json`,
+    );
+  }
+
+  // Hook scripts live in the project, not in node_modules, so they cannot
+  // resolve the package that installed them. Recording it here is what lets
+  // the Stop hook find orvix again.
+  await mkdir(join(root, CACHE_DIR), { recursive: true });
+  await writeFile(
+    join(root, CACHE_DIR, "runtime.json"),
+    `${JSON.stringify(
+      {
+        main: join(packageRoot(), "dist", "main.js"),
+        query: join(packageRoot(), "dist", "query.js"),
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  return done;
 }
 
 /** Adds the cache directory to .gitignore. Returns whether anything changed. */

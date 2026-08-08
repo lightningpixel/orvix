@@ -1,6 +1,8 @@
-import type { IndexedSymbol, OrvixIndex } from "../types.js";
+import type { IndexedSymbol, SymbolTable } from "../types.js";
 import { resolveId } from "./ids.js";
-import { allSymbols } from "./indexer.js";
+import { qualifiedName } from "./symbols.js";
+
+export { qualifiedName };
 
 export type Lookup =
   | { status: "found"; symbol: IndexedSymbol }
@@ -13,39 +15,33 @@ export type Lookup =
  * Ids are tried first and names second, so an agent that has the map can use
  * the cheap handle, while one that does not can still ask for `validate` or
  * `Service.validate` by name.
+ *
+ * Names go through the prebuilt index rather than a scan: this runs on every
+ * query, including from a hook, and walking every symbol to compare strings
+ * made lookup cost track project size.
  */
-export function lookupSymbol(index: OrvixIndex, query: string): Lookup {
-  const symbols = allSymbols(index);
-
-  const byId = resolveId(
-    symbols.map((symbol) => symbol.id),
-    query,
-  );
+export function lookupSymbol(table: SymbolTable, query: string): Lookup {
+  const byId = resolveId(Object.keys(table.symbols), query);
 
   if (byId.status === "found") {
-    const symbol = symbols.find((candidate) => candidate.id === byId.id);
+    const symbol = table.symbols[byId.id];
     if (symbol) return { status: "found", symbol };
   }
 
   if (byId.status === "ambiguous") {
-    return {
-      status: "ambiguous",
-      matches: symbols.filter((symbol) => byId.matches.includes(symbol.id)),
-    };
+    return { status: "ambiguous", matches: hydrate(table, byId.matches) };
   }
 
-  const needle = query.toLowerCase();
-  const byName = symbols.filter(
-    (symbol) =>
-      symbol.name.toLowerCase() === needle ||
-      qualifiedName(symbol).toLowerCase() === needle,
-  );
+  const byName = table.byName[query.toLowerCase()];
+  if (!byName || byName.length === 0) return { status: "unknown" };
 
-  if (byName.length === 1) return { status: "found", symbol: byName[0]! };
-  if (byName.length > 1) return { status: "ambiguous", matches: byName };
-  return { status: "unknown" };
+  const matches = hydrate(table, byName);
+  if (matches.length === 1) return { status: "found", symbol: matches[0]! };
+  return { status: "ambiguous", matches };
 }
 
-export function qualifiedName(symbol: IndexedSymbol): string {
-  return symbol.container ? `${symbol.container}.${symbol.name}` : symbol.name;
+function hydrate(table: SymbolTable, ids: string[]): IndexedSymbol[] {
+  return ids
+    .map((id) => table.symbols[id])
+    .filter((symbol): symbol is IndexedSymbol => symbol !== undefined);
 }

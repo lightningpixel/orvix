@@ -9,8 +9,20 @@ export interface DiscoverOptions {
   maxFileSize?: number;
 }
 
-/** Never worth indexing, and never worth descending into. */
-const ALWAYS_SKIP = new Set(["node_modules", ".git", ".orvix"]);
+/**
+ * Never worth indexing, and never worth descending into.
+ *
+ * `.claude` is here because Orvix installs its own hook scripts into
+ * `.claude/hooks/`. Without this, every project that runs `orvix init` finds
+ * Orvix's own machinery in its symbol map — and an agent asking for the shape
+ * of its codebase gets the tool looking back at it.
+ */
+const ALWAYS_SKIP = new Set([
+  "node_modules",
+  ".git",
+  ".orvix",
+  ".claude",
+]);
 
 /**
  * Applied at the project root before any user rules.

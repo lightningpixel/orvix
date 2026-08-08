@@ -26,6 +26,13 @@ export interface CallGraph {
   ambiguous: AmbiguousCall[];
   /** Call sites naming something the project does not define. */
   unresolved: number;
+  /**
+   * The same count, split by the file the call site sits in.
+   *
+   * Kept per file so a partial rebuild can replace its own contribution
+   * instead of guessing at a project-wide total it never computed.
+   */
+  unresolvedByFile: Map<string, number>;
 }
 
 /**
@@ -50,6 +57,17 @@ const RESOLUTION_ORDER = [
 /** Stripped before trying RESOLUTION_ORDER, so `./b.js` can find `b.ts`. */
 const STRIPPABLE = new Set(supportedExtensions());
 
+export interface CallGraphOptions {
+  /**
+   * Resolve only these files' call sites.
+   *
+   * The project-wide exported-name map is still built from the whole index —
+   * resolution consults it, so it cannot be narrowed — but the walk over call
+   * sites can be, and that walk is the part that scales with project size.
+   */
+  only?: ReadonlySet<string>;
+}
+
 /**
  * Matches call sites to the definitions they reach.
  *
@@ -59,18 +77,24 @@ const STRIPPABLE = new Set(supportedExtensions());
  * When several definitions remain plausible, no edge is drawn and the call is
  * recorded in `ambiguous`; guessing would be worse than admitting the gap.
  */
-export function buildCallGraph(index: OrvixIndex): CallGraph {
+export function buildCallGraph(
+  index: OrvixIndex,
+  options: CallGraphOptions = {},
+): CallGraph {
   const graph: CallGraph = {
     edges: [],
     callers: new Map(),
     callees: new Map(),
     ambiguous: [],
     unresolved: 0,
+    unresolvedByFile: new Map(),
   };
 
   const exportedByName = groupExportedByName(index);
 
   for (const [file, entry] of Object.entries(index.files)) {
+    if (options.only && !options.only.has(file)) continue;
+
     const local = groupByName(entry.symbols);
     const imported = importedSymbols(index, file, entry);
 
@@ -96,6 +120,7 @@ export function buildCallGraph(index: OrvixIndex): CallGraph {
 
       if (!candidates || candidates.length === 0) {
         graph.unresolved += 1;
+        graph.unresolvedByFile.set(file, (graph.unresolvedByFile.get(file) ?? 0) + 1);
         continue;
       }
 

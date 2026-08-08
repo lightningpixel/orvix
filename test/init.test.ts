@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { runInit } from "../src/commands/init.js";
@@ -192,6 +192,78 @@ describe("orvix init — remembering the choice", () => {
   });
 });
 
+describe("orvix init — hooks", () => {
+  test("installs the hook scripts for Claude Code", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+
+    await runInit(root, { agent: ["claude"], home });
+
+    expect(existsSync(join(root, ".claude", "hooks", "orvix-dirty.mjs"))).toBe(true);
+    expect(existsSync(join(root, ".claude", "hooks", "orvix-compress.mjs"))).toBe(true);
+    expect(existsSync(join(root, ".claude", "hooks", "orvix-reconcile.mjs"))).toBe(true);
+  });
+
+  test("registers them in settings.json", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+
+    await runInit(root, { agent: ["claude"], home });
+    const settings = JSON.parse(
+      await readFile(join(root, ".claude", "settings.json"), "utf8"),
+    );
+
+    expect(Object.keys(settings.hooks)).toContain("PostToolUse");
+    expect(Object.keys(settings.hooks)).toContain("Stop");
+  });
+
+  test("records where orvix lives so the hooks can find it again", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+
+    await runInit(root, { agent: ["claude"], home });
+    const runtime = JSON.parse(
+      await readFile(join(root, ".orvix", "runtime.json"), "utf8"),
+    );
+
+    expect(runtime.main).toContain("main.js");
+  });
+
+  test("leaves settings.json byte-identical when run twice", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+
+    await runInit(root, { agent: ["claude"], home });
+    const first = await readFile(join(root, ".claude", "settings.json"), "utf8");
+    await runInit(root, { agent: ["claude"], home });
+
+    expect(await readFile(join(root, ".claude", "settings.json"), "utf8")).toBe(first);
+  });
+
+  test("does not install hooks for an agent that cannot run them", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+
+    await runInit(root, { agent: ["codex"], home });
+
+    expect(existsSync(join(root, ".claude"))).toBe(false);
+  });
+
+  test("refuses to rewrite a settings file that is not valid JSON", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+    await mkdir(join(root, ".claude"), { recursive: true });
+    await writeFile(join(root, ".claude", "settings.json"), "{ broken", "utf8");
+
+    const { output } = await runInit(root, { agent: ["claude"], home });
+
+    expect(output).toContain("not valid JSON");
+    expect(await readFile(join(root, ".claude", "settings.json"), "utf8")).toBe(
+      "{ broken",
+    );
+  });
+});
+
 describe("orvix init — indexing", () => {
   test("builds the index so the first query is instant", async () => {
     const root = await scratch(SOURCE);
@@ -199,7 +271,11 @@ describe("orvix init — indexing", () => {
 
     const { output } = await runInit(root, { agent: ["claude"], home });
 
-    expect(existsSync(join(root, ".orvix", "index.json"))).toBe(true);
+    // The two hot files are what a query actually reads, so those are what
+    // make the first query instant — the raw facts are only for reindexing.
+    expect(existsSync(join(root, ".orvix", "symbols.json"))).toBe(true);
+    expect(existsSync(join(root, ".orvix", "graph.json"))).toBe(true);
+    expect(existsSync(join(root, ".orvix", "facts.json"))).toBe(true);
     expect(output).toMatch(/\d+ symbols/);
   });
 });

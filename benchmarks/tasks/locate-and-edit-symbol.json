@@ -1,0 +1,17 @@
+{
+  "description": "The task Orvix is meant to help with: find one symbol in a project you have not read, and change it without reading everything around it.",
+  "repo": "orvix",
+  "prompt": "Add a JSDoc comment above the `resolveModule` function in src/core/resolve.ts explaining what it returns for a bare package specifier. Change nothing else.",
+  "success": {
+    "kind": "assert",
+    "checks": [
+      {
+        "what": "the named symbol was edited",
+        "file": "src/core/resolve.ts",
+        "contains": "bare package specifier"
+      },
+      { "what": "the project still typechecks", "command": "npx tsc --noEmit" },
+      { "what": "no other file changed", "command": "git diff --name-only", "equals": "src/core/resolve.ts" }
+    ]
+  }
+}

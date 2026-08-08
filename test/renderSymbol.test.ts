@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, test } from "vitest";
+﻿import { afterEach, describe, expect, test } from "vitest";
 import { buildIndex } from "../src/core/indexer.js";
-import { buildCallGraph } from "../src/core/resolve.js";
+import { projectionOf, tableOf, graphOf } from "./helpers/projection.js";
 import { renderList, renderSource } from "../src/render/symbol.js";
 import type { IndexedSymbol, OrvixIndex } from "../src/types.js";
 import { makeProject } from "./helpers/tmpProject.js";
@@ -55,9 +55,9 @@ describe("renderSource", () => {
 describe("renderList", () => {
   test("shows one line per symbol, with file and line", async () => {
     const index = await indexOf({ "src/a.ts": SOURCE });
-    const graph = buildCallGraph(index);
+    const { table, graph } = projectionOf(index);
 
-    const out = renderList([find(index, "target")], index, graph);
+    const out = renderList([find(index, "target")], table, graph);
 
     expect(out).toMatch(/src\/a\.ts:2/);
     expect(out.split("\n")).toHaveLength(1);
@@ -67,24 +67,24 @@ describe("renderList", () => {
     const index = await indexOf({
       "src/a.ts": `export function pub() {}\nfunction priv() {}\n`,
     });
-    const graph = buildCallGraph(index);
+    const { table, graph } = projectionOf(index);
 
-    expect(renderList([find(index, "pub")], index, graph)).toContain("*");
-    expect(renderList([find(index, "priv")], index, graph)).not.toContain("*");
+    expect(renderList([find(index, "pub")], table, graph)).toContain("*");
+    expect(renderList([find(index, "priv")], table, graph)).not.toContain("*");
   });
 
   test("shows the inbound caller count", async () => {
     const index = await indexOf({
       "src/a.ts": `function hot() {}\nfunction c1() { hot(); }\n`,
     });
-    const graph = buildCallGraph(index);
+    const { table, graph } = projectionOf(index);
 
-    expect(renderList([find(index, "hot")], index, graph)).toContain("←1");
+    expect(renderList([find(index, "hot")], table, graph)).toContain("←1");
   });
 
   test("says so plainly when there is nothing to list", async () => {
     const index = await indexOf({ "src/a.ts": SOURCE });
 
-    expect(renderList([], index, buildCallGraph(index))).toContain("none");
+    expect(renderList([], tableOf(index), graphOf(index))).toContain("none");
   });
 });
