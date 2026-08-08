@@ -3,3 +3,7 @@ dist/
 grammars/
 .orvix/
 *.tsbuildinfo
+
+# Scratch projects the synthetic benchmark builds. Its results are committed;
+# the temporary checkouts it works in are not.
+benchmarks/.work/

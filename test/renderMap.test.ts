@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { buildIndex } from "../src/core/indexer.js";
-import { buildCallGraph } from "../src/core/resolve.js";
-import { rankSymbols } from "../src/core/rank.js";
 import { emptyIndex } from "../src/core/store.js";
 import { estimateTokens } from "../src/render/tokens.js";
 import { renderMap } from "../src/render/map.js";
 import { makeProject } from "./helpers/tmpProject.js";
+import { projectionOf } from "./helpers/projection.js";
 
 let cleanup: (() => Promise<void>) | undefined;
 
@@ -22,9 +21,9 @@ async function mapOf(
   cleanup = made.cleanup;
 
   const { index } = await buildIndex(made.root);
-  const graph = buildCallGraph(index);
+  const { table, graph } = projectionOf(index);
 
-  return renderMap(index, graph, rankSymbols(index, graph), { budget });
+  return renderMap(table, graph, { budget });
 }
 
 describe("estimateTokens", () => {
@@ -97,11 +96,9 @@ describe("renderMap", () => {
   });
 
   test("says so plainly when the project has no symbols", () => {
-    const index = emptyIndex();
-    const graph = buildCallGraph(index);
+    const { table, graph } = projectionOf(emptyIndex());
 
-    expect(renderMap(index, graph, rankSymbols(index, graph), { budget: 100 }))
-      .toContain("no symbols");
+    expect(renderMap(table, graph, { budget: 100 })).toContain("no symbols");
   });
 });
 

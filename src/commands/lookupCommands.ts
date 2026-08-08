@@ -1,14 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lookupSymbol, qualifiedName } from "../core/lookup.js";
-import { allSymbols } from "../core/indexer.js";
 import { renderList, renderSource } from "../render/symbol.js";
 import type { IndexedSymbol } from "../types.js";
-import { openProject, type CommandResult, type Session } from "./session.js";
+import {
+  allOf,
+  callersOf,
+  calleesOf,
+  openQuery,
+  rankOf,
+  type CommandResult,
+  type QuerySession,
+} from "../query/session.js";
 
 export interface QueryOptions {
   json?: boolean;
-  refresh?: boolean;
 }
 
 /** `orvix show` — the exact source of one symbol. */
@@ -17,7 +23,7 @@ export async function runShow(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  const session = await openProject(path, { refresh: options.refresh });
+  const session = await openQuery(path);
   const found = resolveOrExplain(session, query);
   if ("failure" in found) return found.failure;
 
@@ -26,7 +32,10 @@ export async function runShow(
   if (options.json) {
     return {
       output: JSON.stringify(
-        { ...found.symbol, source: source.slice(found.symbol.startByte, found.symbol.endByte) },
+        {
+          ...found.symbol,
+          source: source.slice(found.symbol.startByte, found.symbol.endByte),
+        },
         null,
         2,
       ),
@@ -43,9 +52,7 @@ export async function runWhoCalls(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  return relatives(path, query, options, (session, symbol) =>
-    session.graph.callers.get(symbol.id),
-  );
+  return relatives(path, query, options, callersOf);
 }
 
 /** `orvix calls` — the symbols this one calls. */
@@ -54,30 +61,29 @@ export async function runCalls(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  return relatives(path, query, options, (session, symbol) =>
-    session.graph.callees.get(symbol.id),
-  );
+  return relatives(path, query, options, calleesOf);
 }
 
 async function relatives(
   path: string,
   query: string,
   options: QueryOptions,
-  pick: (session: Session, symbol: IndexedSymbol) => Set<string> | undefined,
+  pick: (session: QuerySession, id: string) => string[],
 ): Promise<CommandResult> {
-  const session = await openProject(path, { refresh: options.refresh });
+  const session = await openQuery(path);
   const found = resolveOrExplain(session, query);
   if ("failure" in found) return found.failure;
 
-  const ids = pick(session, found.symbol) ?? new Set<string>();
-  const related = allSymbols(session.index)
+  const ids = new Set(pick(session, found.symbol.id));
+  const related = allOf(session)
     .filter((symbol) => ids.has(symbol.id))
-    .sort(
-      (a, b) => (session.ranks.get(b.id) ?? 0) - (session.ranks.get(a.id) ?? 0),
-    );
+    .sort((a, b) => rankOf(session, b.id) - rankOf(session, a.id));
 
   if (options.json) return { output: JSON.stringify(related, null, 2), ok: true };
-  return { output: renderList(related, session.index, session.graph), ok: true };
+  return {
+    output: renderList(related, session.symbols, session.graph),
+    ok: true,
+  };
 }
 
 /** `orvix find` — search symbols by name or signature. */
@@ -86,22 +92,29 @@ export async function runFind(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  const session = await openProject(path, { refresh: options.refresh });
+  const session = await openQuery(path);
+  const scored = search(session, query);
+
+  if (options.json) return { output: JSON.stringify(scored, null, 2), ok: true };
+  return {
+    output: renderList(scored, session.symbols, session.graph),
+    ok: true,
+  };
+}
+
+/** Ranked search hits, shared with the hook that compresses tool output. */
+export function search(session: QuerySession, query: string): IndexedSymbol[] {
   const needle = query.toLowerCase();
 
-  const scored = allSymbols(session.index)
+  return allOf(session)
     .map((symbol) => ({ symbol, score: matchScore(symbol, needle) }))
     .filter((entry) => entry.score > 0)
     .sort(
       (a, b) =>
         b.score - a.score ||
-        (session.ranks.get(b.symbol.id) ?? 0) -
-          (session.ranks.get(a.symbol.id) ?? 0),
+        rankOf(session, b.symbol.id) - rankOf(session, a.symbol.id),
     )
     .map((entry) => entry.symbol);
-
-  if (options.json) return { output: JSON.stringify(scored, null, 2), ok: true };
-  return { output: renderList(scored, session.index, session.graph), ok: true };
 }
 
 /** Exact name beats a prefix, which beats a substring, which beats the signature. */
@@ -119,15 +132,15 @@ function matchScore(symbol: IndexedSymbol, needle: string): number {
 type Resolved = { symbol: IndexedSymbol } | { failure: CommandResult };
 
 /** Turns a failed lookup into an answer the agent can act on. */
-function resolveOrExplain(session: Session, query: string): Resolved {
-  const result = lookupSymbol(session.index, query);
+function resolveOrExplain(session: QuerySession, query: string): Resolved {
+  const result = lookupSymbol(session.symbols, query);
 
   if (result.status === "found") return { symbol: result.symbol };
 
   if (result.status === "ambiguous") {
     return {
       failure: {
-        output: `"${query}" matches ${result.matches.length} symbols:\n${renderList(result.matches, session.index, session.graph)}`,
+        output: `"${query}" matches ${result.matches.length} symbols:\n${renderList(result.matches, session.symbols, session.graph)}`,
         ok: false,
       },
     };

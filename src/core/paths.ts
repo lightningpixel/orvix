@@ -31,6 +31,10 @@ export function grammarsDir(): string {
   return join(packageRoot(), "grammars");
 }
 
+export function hooksDir(): string {
+  return join(packageRoot(), "hooks");
+}
+
 export function queriesDir(): string {
   return join(packageRoot(), "queries");
 }

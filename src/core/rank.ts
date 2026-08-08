@@ -1,5 +1,5 @@
 import type { OrvixIndex } from "../types.js";
-import { allSymbols } from "./indexer.js";
+import { allSymbols } from "./symbols.js";
 import type { CallGraph } from "./resolve.js";
 
 export interface RankOptions {

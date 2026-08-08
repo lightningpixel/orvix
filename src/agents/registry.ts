@@ -5,6 +5,11 @@ export interface AgentDef {
   label: string;
   /** Instruction file this agent reads, relative to the project root. */
   file: string;
+  /**
+   * Whether this agent can enforce the integration with hooks rather than
+   * relying on the instruction block being honoured.
+   */
+  hooks?: boolean;
 }
 
 /**
@@ -15,7 +20,7 @@ export interface AgentDef {
  * themselves.
  */
 export const AGENTS: readonly AgentDef[] = [
-  { id: "claude", label: "Claude Code", file: "CLAUDE.md" },
+  { id: "claude", label: "Claude Code", file: "CLAUDE.md", hooks: true },
   { id: "codex", label: "Codex", file: "AGENTS.md" },
   { id: "cursor", label: "Cursor", file: "AGENTS.md" },
   { id: "gemini", label: "Gemini CLI", file: "GEMINI.md" },
@@ -35,4 +40,9 @@ export function targetFiles(agentIds: string[]): string[] {
     .filter((file): file is string => file !== undefined);
 
   return [...new Set(files)].sort();
+}
+
+/** Whether any chosen agent can run hooks. */
+export function wantsHooks(agentIds: string[]): boolean {
+  return agentIds.some((id) => agentById(id)?.hooks === true);
 }

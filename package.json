@@ -27,12 +27,14 @@
     "node": ">=20"
   },
   "bin": {
-    "orvix": "dist/main.js"
+    "orvix": "dist/main.js",
+    "orvix-query": "dist/query.js"
   },
   "files": [
     "dist",
     "queries",
     "grammars",
+    "hooks",
     "README.md",
     "LICENSE",
     "NOTICE.md",
@@ -42,6 +44,9 @@
     "postinstall": "node scripts/postinstall.mjs",
     "grammars": "node scripts/copy-grammars.mjs",
     "measure": "node scripts/measure.mjs",
+    "bench": "node scripts/bench.mjs",
+    "scale": "node scripts/scale.mjs",
+    "benchmark": "node benchmarks/run.mjs --mode synthetic",
     "build": "npm run grammars && tsup",
     "dev": "tsup --watch",
     "test": "vitest run",

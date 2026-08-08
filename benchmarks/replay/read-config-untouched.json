@@ -1,0 +1,11 @@
+{
+  "description": "A Read of a config file. Orvix must not touch it — this fixture fails if compression happens, because the task needs the literal values.",
+  "tool_name": "Read",
+  "tool_input": { "file_path": "config/settings.json" },
+  "expect": ["\"retries\": 5", "\"endpoint\"", "https://api.example.com/v2"],
+  "files": {
+    "src/a.ts": "export function a(): number {\n  return 1;\n}\n",
+    "config/settings.json": "{\n  \"endpoint\": \"https://api.example.com/v2\",\n  \"retries\": 5,\n  \"timeoutMs\": 30000,\n  \"features\": {\n    \"batching\": true,\n    \"compression\": false\n  }\n}\n"
+  },
+  "tool_response_text": "{\n  \"endpoint\": \"https://api.example.com/v2\",\n  \"retries\": 5,\n  \"timeoutMs\": 30000,\n  \"features\": {\n    \"batching\": true,\n    \"compression\": false\n  }\n}\n"
+}

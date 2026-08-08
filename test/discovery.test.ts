@@ -162,3 +162,18 @@ describe("discover", () => {
     expect(await discover(root, TS)).toEqual(["A.TS", "b.ts"]);
   });
 });
+
+describe("agent tooling directories", () => {
+  test("never walks .claude", async () => {
+    // Orvix installs its own hook scripts into .claude/hooks/. Indexing them
+    // would put Orvix's internals into the symbol map of every project that
+    // uses it, which is both noise and faintly absurd.
+    const root = await project({
+      "src/a.ts": "export function a() {}\n",
+      ".claude/hooks/orvix-dirty.mjs": "function main() {}\nmain();\n",
+      ".claude/agents/helper.mjs": "export function helper() {}\n",
+    });
+
+    expect(await discover(root, { extensions: [".ts", ".mjs"] })).toEqual(["src/a.ts"]);
+  });
+});

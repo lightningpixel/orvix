@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, test } from "vitest";
+﻿import { afterEach, describe, expect, test } from "vitest";
 import { buildIndex } from "../src/core/indexer.js";
 import { lookupSymbol } from "../src/core/lookup.js";
 import type { OrvixIndex } from "../src/types.js";
 import { makeProject } from "./helpers/tmpProject.js";
+import { tableOf } from "./helpers/projection.js";
 
 let cleanup: (() => Promise<void>) | undefined;
 
@@ -27,7 +28,7 @@ describe("lookupSymbol", () => {
     const index = await indexOf({ "src/a.ts": `export function greet() {}\n` });
     const id = idFor(index, "greet");
 
-    expect(lookupSymbol(index, id)).toMatchObject({
+    expect(lookupSymbol(tableOf(index), id)).toMatchObject({
       status: "found",
       symbol: { name: "greet" },
     });
@@ -37,7 +38,7 @@ describe("lookupSymbol", () => {
     const index = await indexOf({ "src/a.ts": `export function greet() {}\n` });
     const id = idFor(index, "greet");
 
-    expect(lookupSymbol(index, id.slice(0, 4))).toMatchObject({
+    expect(lookupSymbol(tableOf(index), id.slice(0, 4))).toMatchObject({
       status: "found",
       symbol: { name: "greet" },
     });
@@ -46,7 +47,7 @@ describe("lookupSymbol", () => {
   test("finds a symbol by name when the name is unique", async () => {
     const index = await indexOf({ "src/a.ts": `export function greet() {}\n` });
 
-    expect(lookupSymbol(index, "greet")).toMatchObject({
+    expect(lookupSymbol(tableOf(index), "greet")).toMatchObject({
       status: "found",
       symbol: { name: "greet" },
     });
@@ -55,7 +56,7 @@ describe("lookupSymbol", () => {
   test("matches a name regardless of case", async () => {
     const index = await indexOf({ "src/a.ts": `export function Greet() {}\n` });
 
-    expect(lookupSymbol(index, "greet")).toMatchObject({ status: "found" });
+    expect(lookupSymbol(tableOf(index), "greet")).toMatchObject({ status: "found" });
   });
 
   test("finds a method by its qualified name", async () => {
@@ -63,7 +64,7 @@ describe("lookupSymbol", () => {
       "src/a.ts": `export class Service {\n  run() {}\n}\nexport class Other {\n  run() {}\n}\n`,
     });
 
-    expect(lookupSymbol(index, "Service.run")).toMatchObject({
+    expect(lookupSymbol(tableOf(index), "Service.run")).toMatchObject({
       status: "found",
       symbol: { name: "run", container: "Service" },
     });
@@ -75,7 +76,7 @@ describe("lookupSymbol", () => {
       "src/b.ts": `export function run() {}\n`,
     });
 
-    const result = lookupSymbol(index, "run");
+    const result = lookupSymbol(tableOf(index), "run");
 
     expect(result.status).toBe("ambiguous");
     expect(result.status === "ambiguous" && result.matches).toHaveLength(2);
@@ -84,14 +85,14 @@ describe("lookupSymbol", () => {
   test("reports an unknown query", async () => {
     const index = await indexOf({ "src/a.ts": `export function greet() {}\n` });
 
-    expect(lookupSymbol(index, "nothingLikeThis")).toEqual({ status: "unknown" });
+    expect(lookupSymbol(tableOf(index), "nothingLikeThis")).toEqual({ status: "unknown" });
   });
 
   test("prefers an id match over a name that shares the prefix", async () => {
     const index = await indexOf({ "src/a.ts": `export function greet() {}\n` });
     const id = idFor(index, "greet");
 
-    expect(lookupSymbol(index, id)).toMatchObject({
+    expect(lookupSymbol(tableOf(index), id)).toMatchObject({
       status: "found",
       symbol: { id },
     });

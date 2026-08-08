@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import pkg from "../package.json" with { type: "json" };
 import { runIndex } from "./commands/indexCommand.js";
+import { runGain } from "./commands/gain.js";
 import { runInit } from "./commands/init.js";
 import { askForAgents, isInteractive } from "./commands/prompt.js";
 import { runMap } from "./commands/map.js";
@@ -10,7 +11,7 @@ import {
   runShow,
   runWhoCalls,
 } from "./commands/lookupCommands.js";
-import type { CommandResult } from "./commands/session.js";
+import type { CommandResult } from "./query/session.js";
 
 /**
  * Builds the CLI without running it, so tests can inspect the command tree.
@@ -62,6 +63,14 @@ export function buildCli(): Command {
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((path, options) => runMap(path, options)));
+
+  program
+    .command("gain")
+    .description("report the tokens the hooks have saved, per session and in total")
+    .argument("[path]", "project root", ".")
+    .option("--json", "machine-readable output")
+    .option("-s, --session <id>", "report only this session")
+    .action(report((path, options) => runGain(path, options)));
 
   program
     .command("show")

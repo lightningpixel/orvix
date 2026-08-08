@@ -1,7 +1,5 @@
-import type { IndexedSymbol, OrvixIndex } from "../types.js";
+import type { IndexedSymbol, PersistedGraph, SymbolTable } from "../types.js";
 import { displayLength } from "../core/ids.js";
-import { allSymbols } from "../core/indexer.js";
-import type { CallGraph } from "../core/resolve.js";
 import { estimateTokens } from "./tokens.js";
 
 export interface MapRenderOptions {
@@ -20,26 +18,26 @@ const DEFAULT_MAX_SIGNATURE = 90;
  * returned, so output is never cut mid-line.
  */
 export function renderMap(
-  index: OrvixIndex,
-  graph: CallGraph,
-  ranks: Map<string, number>,
+  table: SymbolTable,
+  graph: PersistedGraph,
   options: MapRenderOptions,
 ): string {
-  const symbols = allSymbols(index);
+  const symbols = Object.values(table.symbols);
   if (symbols.length === 0) return "no symbols indexed";
 
-  const idWidth = displayLength(symbols.map((symbol) => symbol.id));
+  const idWidth = displayLength(Object.keys(table.symbols));
   const maxSignature = options.maxSignature ?? DEFAULT_MAX_SIGNATURE;
 
   // Most important first; the id breaks ties so output never depends on the
   // order files happened to be walked in.
   const byImportance = [...symbols].sort(
     (a, b) =>
-      (ranks.get(b.id) ?? 0) - (ranks.get(a.id) ?? 0) || a.id.localeCompare(b.id),
+      (table.ranks[b.id] ?? 0) - (table.ranks[a.id] ?? 0) ||
+      a.id.localeCompare(b.id),
   );
 
   const render = (count: number): string =>
-    layout(byImportance.slice(0, count), symbols, graph, {
+    layout(byImportance.slice(0, count), table, graph, {
       idWidth,
       maxSignature,
     });
@@ -79,32 +77,30 @@ interface LayoutOptions {
 
 function layout(
   selected: IndexedSymbol[],
-  all: IndexedSymbol[],
-  graph: CallGraph,
+  table: SymbolTable,
+  graph: PersistedGraph,
   options: LayoutOptions,
 ): string {
   const shown = new Set(selected.map((symbol) => symbol.id));
-
-  const byFile = new Map<string, IndexedSymbol[]>();
-  for (const symbol of all) {
-    const bucket = byFile.get(symbol.file);
-    if (bucket) bucket.push(symbol);
-    else byFile.set(symbol.file, [symbol]);
-  }
 
   const lines: string[] = [];
   let hiddenFiles = 0;
   let hiddenSymbols = 0;
 
-  for (const file of [...byFile.keys()].sort()) {
-    const inFile = byFile.get(file)!;
+  for (const file of Object.keys(table.byFile).sort()) {
+    const inFile = (table.byFile[file] ?? [])
+      .map((id) => table.symbols[id])
+      .filter((symbol): symbol is IndexedSymbol => symbol !== undefined);
+
     const visible = inFile
       .filter((symbol) => shown.has(symbol.id))
       .sort((a, b) => a.startLine - b.startLine);
 
     if (visible.length === 0) {
-      hiddenFiles += 1;
-      hiddenSymbols += inFile.length;
+      if (inFile.length > 0) {
+        hiddenFiles += 1;
+        hiddenSymbols += inFile.length;
+      }
       continue;
     }
 
@@ -124,12 +120,12 @@ function layout(
 
 function symbolLine(
   symbol: IndexedSymbol,
-  graph: CallGraph,
+  graph: PersistedGraph,
   { idWidth, maxSignature }: LayoutOptions,
 ): string {
   const id = symbol.id.slice(0, idWidth);
   const marker = symbol.exported ? "*" : " ";
-  const callers = graph.callers.get(symbol.id)?.size ?? 0;
+  const callers = graph.callers[symbol.id]?.length ?? 0;
   const inbound = callers > 0 ? ` ←${callers}` : "";
 
   return `  ${id} ${marker}${qualified(symbol, maxSignature)}  :${symbol.startLine}${inbound}`;
