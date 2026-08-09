@@ -7,7 +7,7 @@
 Index a codebase once, address every symbol by a short code,
 and read only the function you actually need.
 
-[Install](#install) · [Commands](#commands) · [Languages](#languages) · [Claude Code](#claude-code) · [Numbers](#numbers)
+[Install](#install) · [Commands](#commands) · [Claude Code](#claude-code) · [Numbers](#numbers) · [Limits](#what-the-call-graph-does-not-know)
 
 </div>
 
@@ -44,6 +44,8 @@ orvix init
 `.gitignore`, and builds the index. The answer is remembered, so later projects need no answer.
 
 Node 20 or later. Pure JavaScript and WebAssembly — nothing to compile.
+
+Indexes TypeScript, TSX, JavaScript, Python, Go, Rust, Java, C#, C++ and C.
 
 ## Commands
 
@@ -99,28 +101,6 @@ Both compressions are on by default. To turn one off without touching your agent
 **What hooks cannot do is create initiative.** A hook only reacts to a tool call the model already
 decided to make, so `orvix who-calls` before a signature change still depends on the instruction
 block. Compression is mechanical; navigation is a recommendation.
-
-## Languages
-
-TypeScript · TSX · JavaScript · Python · Go · Rust · Java · C# · C++ · C
-
-`map`, `show` and `find` behave the same in all of them. **The call graph does not**, and it is
-worth knowing before you lean on it. Each row is a real project, indexed end to end:
-
-| Project | Language | Files | Calls resolved | Refused as ambiguous |
-|---|---|---|---|---|
-| curl/curl | C | 1 068 | **42%** | **2%** |
-| JamesNK/Newtonsoft.Json | C# | 945 | 27% | 59% |
-| fmtlib/fmt | C++ | 77 | 27% | 30% |
-| google/gson | Java | 264 | 25% | 33% |
-
-The rest of each row is calls into the standard library, which resolve to nothing by design.
-
-The split is not about the language being hard — it is about where calls go. C has free functions
-with project-unique names, exactly what a syntactic resolver can follow, and it gives the densest
-graph here. C#, C++ and Java send most calls through a receiver on a typed object, and `x.Get(…)`
-cannot be attributed without knowing the type of `x`. Refusing to guess is the rule working: a
-wrong edge is worse than a missing one.
 
 ## Numbers
 
@@ -197,6 +177,9 @@ unique exported name — never across a language family.
   own side of it.
 - **Type references are not call edges**, so an interface reports no callers. Ranking compensates
   by biasing toward exported symbols.
+- **A call through a receiver on a typed object cannot be attributed** — `x.Get(…)` needs the type
+  of `x`. This makes the graph thinner in Java, C# and C++, where most calls take that form, than
+  in C, Go or TypeScript. `map`, `show` and `find` are unaffected.
 - Import following is implemented for ECMAScript module paths; the other languages rely on
   same-file scope and project-unique names.
 
