@@ -8,7 +8,7 @@ run `orvix init` there instead — it writes a different, much shorter file.)
 ```bash
 npm run build      # copies grammars into grammars/, then bundles the CLI
 npx tsc --noEmit
-npm test           # vitest, currently 370 tests
+npm test           # vitest, currently 394 tests
 ```
 
 All three must pass. Never report work as done without running them.
