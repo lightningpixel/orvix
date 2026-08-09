@@ -147,6 +147,19 @@ describe("orvix init — remembering the choice", () => {
     expect(existsSync(join(root, "GEMINI.md"))).toBe(true);
   });
 
+  // Silently acting on a choice made in another repository months ago reads as
+  // the tool guessing. Saying where it came from also says how to change it.
+  test("says when it is reusing a saved choice, and from where", async () => {
+    const root = await scratch(SOURCE);
+    const home = await scratch();
+    await saveConfig({ agents: ["gemini"] }, home);
+
+    const { output } = await runInit(root, { home });
+
+    expect(output).toContain("gemini");
+    expect(output).toMatch(/saved choice|config\.json/);
+  });
+
   test("asks when nothing has been saved yet", async () => {
     const root = await scratch(SOURCE);
     const home = await scratch();

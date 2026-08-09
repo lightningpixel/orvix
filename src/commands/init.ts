@@ -10,7 +10,7 @@ import {
   type AgentDef,
 } from "../agents/registry.js";
 import { hooksDir, packageRoot } from "../core/paths.js";
-import { loadConfig, saveConfig } from "../core/config.js";
+import { configPath, loadConfig, saveConfig } from "../core/config.js";
 import { buildIndex, allSymbols } from "../core/indexer.js";
 import { CACHE_DIR } from "../core/store.js";
 import type { CommandResult } from "../query/session.js";
@@ -56,7 +56,7 @@ export async function runInit(
 
   const files = targetFiles(chosen.agents);
   const block = instructionBlock();
-  const done: string[] = [];
+  const done: string[] = chosen.note ? [chosen.note] : [];
 
   for (const file of files) {
     const existing = await readIfPresent(join(root, file));
@@ -80,7 +80,9 @@ export async function runInit(
   };
 }
 
-type Chosen = { agents: string[] } | { failure: CommandResult };
+type Chosen =
+  | { agents: string[]; note?: string }
+  | { failure: CommandResult };
 
 /**
  * Resolution order: an explicit flag, then the saved global choice, then the
@@ -106,7 +108,16 @@ async function chooseAgents(options: InitOptions): Promise<Chosen> {
   }
 
   const saved = await loadConfig(options.home);
-  if (saved && saved.agents.length > 0) return { agents: saved.agents };
+  if (saved && saved.agents.length > 0) {
+    // Not asking is the point of a global install, but acting on a choice made
+    // in another repository months ago reads as guesswork unless it says so.
+    return {
+      agents: saved.agents,
+      note:
+        `using saved choice: ${saved.agents.join(", ")} ` +
+        `(${configPath(options.home)} — override with --agent)`,
+    };
+  }
 
   if (options.prompt) {
     const answered = (await options.prompt(AGENTS)).filter((id) => agentById(id));

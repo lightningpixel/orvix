@@ -365,4 +365,10 @@ function record(root, input, original, replacement) {
   }
 }
 
-main();
+try {
+  main();
+} catch {
+  // Every guard above answers an unusable input by leaving the original
+  // result standing. An exception must answer it the same way: this runs on
+  // every tool call, and a compression is never worth failing a turn over.
+}
