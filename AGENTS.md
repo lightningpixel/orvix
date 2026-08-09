@@ -8,7 +8,7 @@ run `orvix init` there instead — it writes a different, much shorter file.)
 ```bash
 npm run build      # copies grammars into grammars/, then bundles the CLI
 npx tsc --noEmit
-npm test           # vitest, currently 246 tests
+npm test           # vitest, currently 370 tests
 ```
 
 All three must pass. Never report work as done without running them.
@@ -51,9 +51,11 @@ breaking change and it needs a major version, not a new literal.
 returns the largest that fits. Never satisfy a budget by truncating the final string.
 
 **Call resolution never guesses.** Same-file scope, then imports, then a project-unique exported
-name. A call through a receiver reaches only methods; a bare call reaches only non-methods. When
-several candidates remain, draw no edge and record it in `ambiguous`. A wrong edge is worse than
-a missing one.
+name. A call through a receiver reaches only methods; a bare call reaches only non-methods. The
+project-wide tier never crosses a language family — TypeScript, TSX and JavaScript are one family,
+every other language stands alone — because a unique name is not evidence when the only match is
+in another language. When several candidates remain, draw no edge and record it in `ambiguous`.
+A wrong edge is worse than a missing one.
 
 **Indexing tolerates one bad file.** A grammar that will not load or a missing query costs that
 file, never the run.

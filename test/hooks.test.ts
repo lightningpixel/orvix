@@ -220,6 +220,30 @@ describe("orvix-compress — Read", () => {
     expect(entry.tool).toBe("Read");
     expect(entry.after).toBeLessThan(entry.before);
   });
+
+  // A cache written by another version of orvix parses as JSON but need not
+  // hold the shape this version expects. The hook runs on every tool call, so
+  // whatever it cannot use it must leave alone — never fail the turn over it.
+  test("leaves the result alone when the cache has an unexpected shape", async () => {
+    const root = await project({ "src/big.ts": longSource() });
+
+    await writeFile(
+      join(root, ".orvix", "symbols.json"),
+      JSON.stringify({ version: 1, symbols: {}, byFile: { "src/big.ts": "not-an-array" } }),
+      "utf8",
+    );
+
+    const content = await readFile(join(root, "src/big.ts"), "utf8");
+    const out = await runHook("orvix-compress.mjs", {
+      cwd: root,
+      session_id: "s1",
+      tool_name: "Read",
+      tool_input: { file_path: join(root, "src/big.ts") },
+      tool_response: { file: { content } },
+    });
+
+    expect(out.trim()).toBe("");
+  });
 });
 
 describe("orvix-compress — Grep", () => {

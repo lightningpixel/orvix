@@ -26,15 +26,15 @@ $ orvix who-calls l00y  # every symbol that calls parse
 ## Results
 
 Every number below comes from a command in this repository. Measured on Orvix's own source —
-75 files, 389 symbols, 1 127 call edges, 0 call sites too ambiguous to link — on Windows with
+75 files, 395 symbols, 1 150 call edges, 0 call sites too ambiguous to link — on Windows with
 Node 24. Re-run them; they will differ on your machine and your code.
 
 ### Reading one symbol instead of one file — `npm run measure`
 
 | Task | Reading files | With orvix | Saved |
 |---|---|---|---|
-| Target one function (`resolveModule`) to edit it | ~1,912 | ~235 | **88%** |
-| Take in the whole project's shape | ~33,254 | ~1,990 | **94%** |
+| Target one function (`resolveModule`) to edit it | ~2,000 | ~235 | **88%** |
+| Take in the whole project's shape | ~33,630 | ~1,998 | **94%** |
 
 ### What the hooks actually replace — `npm run benchmark`
 
@@ -57,9 +57,9 @@ This runs in CI on every commit.
 ### Query latency — `npm run bench`
 
 ```
-node floor      37.4 ms      ← nothing here can go below this
-orvix overhead  17.2 ms
-query total     54.6 ms
+node floor      34.7 ms      ← nothing here can go below this
+orvix overhead  16.7 ms
+query total     51.4 ms
 ```
 
 Median of five runs; it moves by a few ms with machine load, and by rather more on a busy one.
@@ -77,9 +77,9 @@ Generated projects with cross-file imports and calls, indexed and queried end to
 
 | files | `orvix index` | `orvix show` | hot files | cold file |
 |---|---|---|---|---|
-| 100 | 274 ms | 53 ms | 241 KB | 265 KB |
-| 500 | 790 ms | 62 ms | 1 220 KB | 1 336 KB |
-| 2 000 | 2 825 ms | 97 ms | 4 937 KB | 5 380 KB |
+| 100 | 285 ms | 54 ms | 241 KB | 265 KB |
+| 500 | 746 ms | 59 ms | 1 220 KB | 1 336 KB |
+| 2 000 | 2 547 ms | 85 ms | 4 937 KB | 5 380 KB |
 
 Indexing grows with the project, as it must. A query grows far more slowly: 20× the files costs
 under 2× the query, because a lookup reads only the symbol table and never the call sites, and the
@@ -88,7 +88,7 @@ repository the files a query reads are **31%** of the cache.
 
 ### Correctness — `npm test`
 
-362 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
+370 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
 updated index is **byte-identical** to indexing the project from scratch. It has caught four real
 bugs that unit tests missed.
 
@@ -248,7 +248,17 @@ It is deliberately conservative:
   your own `parse` function.
 - When several definitions remain plausible, **no edge is drawn**. `orvix index` reports the
   count of such call sites. Guessing would be worse than admitting the gap.
+- A call never resolves **across languages**. TypeScript, TSX and JavaScript count as one; the
+  rest stand alone. Otherwise a project's only symbol named `filter` — a Python method, say —
+  collects every `xs.filter(…)` in its TypeScript half.
 - Calls into third-party libraries resolve to nothing, by design.
+
+**Calls dispatched through a string are invisible.** An Electron IPC channel, an event name, a
+route table, a DI container: the caller names a string and the framework finds the target, so
+there is no call for tree-sitter to see. `who-calls` on a function behind such a boundary returns
+only the callers on its own side of it — a real answer, but not the whole one. This is worth
+knowing before you trust `who-calls` to enumerate the blast radius of a signature change in an
+app built around a message bus.
 
 Known limits: type references are not call edges, so an interface shows no callers — ranking
 compensates by biasing toward exported symbols. Import following is implemented for ECMAScript

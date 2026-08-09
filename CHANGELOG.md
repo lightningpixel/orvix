@@ -10,8 +10,19 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- `orvix init` now says when it is applying the agent choice saved from an earlier project, and
+  names the file it came from. Not asking again is the point of a global install, but acting on a
+  months-old answer without a word reads as the tool guessing.
+
 ### Fixed
 
+- The compression hook could exit non-zero and surface an error in the agent's transcript. Every
+  guard inside it answers an unusable input by leaving the original result standing, but an
+  exception escaping `main()` did the opposite — reachable with a `.orvix/symbols.json` written by
+  another version of orvix. It runs on every tool call; a compression is never worth failing a
+  turn over.
 - Calls no longer resolve across languages. The last resort of resolution — a project-wide unique
   exported name — had no notion of language, so in a mixed repository a TypeScript `xs.filter(…)`
   matched a Python method named `filter` simply because that name was unique. On a real 155-file
