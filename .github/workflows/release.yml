@@ -64,8 +64,14 @@ jobs:
 
       # Attaching the tarball lets anyone install the exact artefact that was
       # tested, without waiting for npm.
+      #
+      # `--pack-destination` writes into the directory but does not create it,
+      # and a fresh runner has no dist-pack, so the mkdir is load-bearing.
+      # ci.yml packs into /tmp and never noticed.
       - name: Pack the tarball
-        run: npm pack --pack-destination dist-pack
+        run: |
+          mkdir -p dist-pack
+          npm pack --pack-destination dist-pack
 
       - name: Publish the release
         env:
