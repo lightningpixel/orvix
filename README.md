@@ -230,7 +230,16 @@ file, gets nothing, and concludes the tool is broken instead of just reading the
 
 ## Languages
 
-TypeScript · TSX · JavaScript · Python · Go · Rust
+TypeScript · TSX · JavaScript · Python · Go · Rust · Java
+
+**Java resolves fewer calls than the rest, and it is worth knowing why before you rely on it.**
+Indexing google/gson — 264 files, 5 009 symbols — 18% of call sites became edges, 32% were
+refused as ambiguous and 49% pointed into the JDK. The refusals are the rule working: Java names
+methods `get`, `add`, `create`, `value` across unrelated classes, and `x.get(…)` cannot be
+attributed without knowing the type of `x`. Only 5% of them were overloads of one method, so
+collapsing those would not help. `map`, `show` and `find` are unaffected and behave as they do
+everywhere; `who-calls` and `calls` see roughly a third of what they see in a TypeScript project,
+and ranking, which reads the call graph, is correspondingly flatter.
 
 Adding one means three things: an entry in `src/core/languages.ts`, its grammar in
 `scripts/copy-grammars.mjs`, and a tag query in `queries/<id>.scm`.
