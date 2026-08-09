@@ -112,6 +112,21 @@ describe("python", () => {
 
     expect(f.symbols.map((s) => s.name).sort()).toEqual(["TOP", "run"]);
   });
+
+  // The query matches a module-level assignment through its `(module ...)`
+  // parent. Capturing the definition on that parent rather than on the
+  // assignment gave every constant the whole file as its range, so `show`
+  // printed the file. Nothing else pinned a constant's span.
+  test("spans only the assignment, not the enclosing module", async () => {
+    const f = await facts(
+      "src/a.py",
+      `import os\n\nTHRESHOLD = 42\n\ndef run():\n    return THRESHOLD\n`,
+    );
+
+    const threshold = f.symbols.find((s) => s.name === "THRESHOLD");
+    expect(threshold?.startLine).toBe(3);
+    expect(threshold?.endLine).toBe(3);
+  });
 });
 
 describe("go", () => {
@@ -150,6 +165,23 @@ describe("go", () => {
 
     const run = f.symbols.findIndex((s) => s.name === "run");
     expect(f.references.find((r) => r.name === "helper")?.fromSymbol).toBe(run);
+  });
+
+  // A grouped `type ( … )` is one type_declaration holding several type_specs.
+  // Anchoring the definition on the declaration gave every type in the group
+  // the whole block as its range, so `show Alpha` printed Beta as well.
+  test("gives each type in a grouped declaration its own span", async () => {
+    const f = await facts(
+      "main.go",
+      `package main\n\n` +
+        `type (\n\tAlpha struct {\n\t\tx int\n\t}\n\tBeta struct {\n\t\ty int\n\t}\n)\n`,
+    );
+
+    const alpha = f.symbols.find((s) => s.name === "Alpha");
+    const beta = f.symbols.find((s) => s.name === "Beta");
+
+    expect([alpha?.startLine, alpha?.endLine]).toEqual([4, 6]);
+    expect([beta?.startLine, beta?.endLine]).toEqual([7, 9]);
   });
 });
 
