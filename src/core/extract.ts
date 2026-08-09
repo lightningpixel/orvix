@@ -42,6 +42,11 @@ const LOCAL_SCOPES: Record<string, Set<string>> = {
   python: new Set(["function_definition", "lambda"]),
   go: new Set(["function_declaration", "method_declaration", "func_literal"]),
   rust: new Set(["function_item", "closure_expression"]),
+  java: new Set([
+    "method_declaration",
+    "constructor_declaration",
+    "lambda_expression",
+  ]),
 };
 
 /**
@@ -160,7 +165,9 @@ function collect(
   const kept = dedupe(symbols).sort((a, b) => a.startByte - b.startByte);
   assignContainers(kept);
   promoteToMethods(kept);
-  inheritExportedFromContainer(kept);
+  if (!STATES_MEMBER_VISIBILITY.has(def.id)) {
+    inheritExportedFromContainer(kept);
+  }
 
   const references: RawReference[] = pendingRefs
     .sort((a, b) => a.byte - b.byte)
@@ -193,8 +200,18 @@ function promoteToMethods(symbols: RawSymbol[]): void {
 }
 
 /**
+ * Languages where a member carries its own visibility, so the enclosing type
+ * must not speak for it. `private int shut()` inside a public class is
+ * private, and saying otherwise contradicts the source.
+ */
+const STATES_MEMBER_VISIBILITY = new Set(["java"]);
+
+/**
  * A public method of an exported class is part of the file's public surface
  * even though nothing exports it directly.
+ *
+ * Only for languages where a member cannot say otherwise — see
+ * STATES_MEMBER_VISIBILITY.
  */
 function inheritExportedFromContainer(symbols: RawSymbol[]): void {
   const exportedContainers = new Set(
@@ -338,9 +355,28 @@ function isExported(node: Node, name: string, languageId: string): boolean {
     case "rust":
       return hasChildOfType(node, "visibility_modifier");
 
+    // Java is explicit too, and says private out loud. A package-private
+    // member is not part of the surface either, so only `public` counts.
+    case "java":
+      return /\bpublic\b/.test(modifiersOf(node));
+
     default:
       return false;
   }
+}
+
+/**
+ * The `modifiers` child of a Java declaration, or "" when it has none.
+ *
+ * Read as text rather than by walking children because annotations,
+ * `@Override` among them, sit in the same node as the access keywords.
+ */
+function modifiersOf(node: Node): string {
+  for (let index = 0; index < node.childCount; index += 1) {
+    const child = node.child(index);
+    if (child?.type === "modifiers") return child.text;
+  }
+  return "";
 }
 
 function hasChildOfType(node: Node, type: string): boolean {

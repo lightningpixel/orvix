@@ -72,6 +72,7 @@ export const LANGUAGES: readonly LanguageDef[] = [
     extensions: [".py", ".pyi"],
   },
   { id: "go", grammar: "tree-sitter-go.wasm", extensions: [".go"] },
+  { id: "java", grammar: "tree-sitter-java.wasm", extensions: [".java"] },
   { id: "rust", grammar: "tree-sitter-rust.wasm", extensions: [".rs"] },
 ];
 

@@ -19,6 +19,7 @@ const GRAMMARS = [
   "tree-sitter-python.wasm",
   "tree-sitter-go.wasm",
   "tree-sitter-rust.wasm",
+  "tree-sitter-java.wasm",
 ];
 
 const available = await readdir(SOURCE).catch(() => {

@@ -185,6 +185,71 @@ describe("go", () => {
   });
 });
 
+describe("java", () => {
+  test("reads classes, interfaces, methods and enums", async () => {
+    const f = await facts(
+      "src/Service.java",
+      `package com.example;\n\n` +
+        `public interface Runner {\n  void run();\n}\n\n` +
+        `public enum Mode { FAST, SLOW }\n\n` +
+        `public class Service {\n` +
+        `  public int run() {\n    return helper();\n  }\n` +
+        `  private int helper() {\n    return 1;\n  }\n}\n`,
+    );
+
+    const found = summary(f);
+    expect(found["Runner"]).toBe("interface*");
+    expect(found["Mode"]).toBe("enum*");
+    expect(found["Service"]).toBe("class*");
+    expect(found["Service.run"]).toBe("method*");
+  });
+
+  // Java says private out loud. Inferring visibility from the enclosing class,
+  // as the ECMAScript path does, would contradict the source.
+  test("treats a private member as not exported", async () => {
+    const f = await facts(
+      "src/Service.java",
+      `public class Service {\n  public int open() { return 1; }\n  private int shut() { return 2; }\n}\n`,
+    );
+
+    expect(
+      Object.fromEntries(f.symbols.map((s) => [s.name, s.exported])),
+    ).toEqual({ Service: true, open: true, shut: false });
+  });
+
+  test("records a call and its caller", async () => {
+    const f = await facts(
+      "src/Service.java",
+      `class Service {\n  int helper() { return 1; }\n  int run() {\n    return helper();\n  }\n}\n`,
+    );
+
+    const run = f.symbols.findIndex((s) => s.name === "run");
+    expect(f.references.find((r) => r.name === "helper")?.fromSymbol).toBe(run);
+  });
+
+  test("ignores variables local to a method", async () => {
+    const f = await facts(
+      "src/Service.java",
+      `class Service {\n  int run() {\n    int inner = 2;\n    return inner;\n  }\n}\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name).sort()).toEqual(["Service", "run"]);
+  });
+
+  test("distinguishes a call through a receiver from a bare one", async () => {
+    const f = await facts(
+      "src/Service.java",
+      `class Service {\n  int run(Helper h) {\n    return h.compute() + local();\n  }\n  int local() { return 1; }\n}\n`,
+    );
+
+    const compute = f.references.find((r) => r.name === "compute");
+    const local = f.references.find((r) => r.name === "local");
+
+    expect(compute?.viaMember).toBe(true);
+    expect(local?.viaMember).toBe(false);
+  });
+});
+
 describe("rust", () => {
   test("reads functions, structs, enums and traits", async () => {
     const f = await facts(

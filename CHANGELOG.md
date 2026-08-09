@@ -10,6 +10,17 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Java. Classes, records, interfaces, enums, annotation types, methods, constructors and fields,
+  with visibility read from the `public` modifier rather than inferred from the enclosing type —
+  Java says `private` out loud, and the enclosing class must not speak over it.
+  Measured on google/gson (264 files, 5 009 symbols): 18% of call sites resolved to edges, 32%
+  were refused as ambiguous, 49% pointed into the JDK. `map`, `show` and `find` behave as they do
+  in every other language; `who-calls` and `calls` see about a third of what they see in a
+  TypeScript project, because `x.get(…)` cannot be attributed without the type of `x`. The README
+  says so next to the language list.
+
 ### Changed
 
 - `orvix init` now says when it is applying the agent choice saved from an earlier project, and
