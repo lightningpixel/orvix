@@ -67,7 +67,7 @@ function main() {
     `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        updatedToolOutput: replacement,
+        updatedToolOutput: withText(input.tool_response, replacement),
         ...(firstTime(root, input)
           ? {
               additionalContext:
@@ -153,6 +153,50 @@ function extractText(response) {
   }
 
   return undefined;
+}
+
+/**
+ * Puts the replacement back in the shape the result arrived in.
+ *
+ * Claude Code validates `updatedToolOutput` against the tool's own output
+ * schema and discards anything that does not match, keeping the original and
+ * noting it in the transcript. Read, Grep and Bash all return objects, so
+ * handing back a bare string threw away every compression of them — silently
+ * from Orvix's side, which went on recording the saving in `gain.jsonl`.
+ *
+ * The cases mirror extractText, in the same order, so the field written is the
+ * one that was read.
+ */
+function withText(response, text) {
+  if (typeof response !== "object" || response === null) return text;
+
+  if (Array.isArray(response)) {
+    let done = false;
+    return response.map((block) => {
+      if (done || typeof block?.text !== "string") return block;
+      done = true;
+      return { ...block, text };
+    });
+  }
+
+  if (typeof response.content === "string") {
+    return {
+      ...response,
+      content: text,
+      // Grep states how much it returned; the old count would describe
+      // something the model is no longer being shown.
+      ...(typeof response.numLines === "number"
+        ? { numLines: text.split("\n").length }
+        : {}),
+    };
+  }
+  if (typeof response.text === "string") return { ...response, text };
+  if (typeof response.stdout === "string") return { ...response, stdout: text };
+  if (response.file && typeof response.file.content === "string") {
+    return { ...response, file: { ...response.file, content: text } };
+  }
+
+  return text;
 }
 
 /**

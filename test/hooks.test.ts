@@ -117,11 +117,26 @@ describe("orvix-compress — Read", () => {
     return out.trim() === "" ? undefined : JSON.parse(out);
   }
 
+  // Claude Code validates updatedToolOutput against the tool's own output
+  // shape and discards a mismatch, saying so in the transcript and keeping the
+  // original. Returning a bare string meant every compression of a tool whose
+  // result is an object — Read, Grep, Bash — was silently thrown away.
+  test("returns the replacement in the shape the tool's result had", async () => {
+    const root = await project({ "src/big.ts": longSource() });
+
+    const output = (await read(root, "src/big.ts")).hookSpecificOutput
+      .updatedToolOutput;
+
+    expect(typeof output).toBe("object");
+    expect(typeof output.file.content).toBe("string");
+    expect(output.file.content).toContain("body elided by orvix");
+  });
+
   test("replaces a long indexed file with its symbol map", async () => {
     const root = await project({ "src/big.ts": longSource() });
 
     const result = await read(root, "src/big.ts");
-    const output = result.hookSpecificOutput.updatedToolOutput;
+    const output = result.hookSpecificOutput.updatedToolOutput.file.content;
 
     expect(output).toContain("src/big.ts");
     expect(output).toContain("handler0");
@@ -132,7 +147,8 @@ describe("orvix-compress — Read", () => {
   test("always leaves a way back to the real source", async () => {
     const root = await project({ "src/big.ts": longSource() });
 
-    const output = (await read(root, "src/big.ts")).hookSpecificOutput.updatedToolOutput;
+    const output = (await read(root, "src/big.ts")).hookSpecificOutput
+      .updatedToolOutput.file.content;
 
     expect(output).toContain("orvix show");
     expect(output).toMatch(/read this file again|offset/);
@@ -247,15 +263,33 @@ describe("orvix-compress — Read", () => {
 });
 
 describe("orvix-compress — Grep", () => {
+  // The shape Grep actually returns, taken from a recorded session. The fixture
+  // used to be a bare string, which is why nothing caught that a string handed
+  // back was rejected by Claude Code and the compression discarded.
   async function grep(root: string, output: string) {
     const out = await runHook("orvix-compress.mjs", {
       cwd: root,
       session_id: "s1",
       tool_name: "Grep",
       tool_input: { pattern: "handler" },
-      tool_response: output,
+      tool_response: {
+        mode: "content",
+        numFiles: 0,
+        filenames: [],
+        content: output,
+        numLines: output.split("\n").length,
+        totalLines: output.split("\n").length,
+      },
     });
-    return out.trim() === "" ? undefined : JSON.parse(out);
+    if (out.trim() === "") return undefined;
+    const parsed = JSON.parse(out);
+    const replaced = parsed.hookSpecificOutput.updatedToolOutput;
+    if (typeof replaced !== "object" || typeof replaced.content !== "string") {
+      throw new Error(`Grep replacement must keep Grep's shape, got ${typeof replaced}`);
+    }
+    // Flattened so the assertions below read the text, not the envelope.
+    parsed.hookSpecificOutput.updatedToolOutput = replaced.content;
+    return parsed;
   }
 
   test("collapses many hits into the few symbols containing them", async () => {
@@ -323,15 +357,29 @@ async function hitsFor(root: string, count: number) {
 }
 
 describe("orvix-compress — searches run through Bash", () => {
+  // Bash returns an object too, not the bare string this fixture used to send.
   async function bash(root: string, command: string, output: string) {
     const out = await runHook("orvix-compress.mjs", {
       cwd: root,
       session_id: "s1",
       tool_name: "Bash",
       tool_input: { command },
-      tool_response: output,
+      tool_response: {
+        stdout: output,
+        stderr: "",
+        interrupted: false,
+        isImage: false,
+        noOutputExpected: false,
+      },
     });
-    return out.trim() === "" ? undefined : JSON.parse(out);
+    if (out.trim() === "") return undefined;
+    const parsed = JSON.parse(out);
+    const replaced = parsed.hookSpecificOutput.updatedToolOutput;
+    if (typeof replaced !== "object" || typeof replaced.stdout !== "string") {
+      throw new Error(`Bash replacement must keep Bash's shape, got ${typeof replaced}`);
+    }
+    parsed.hookSpecificOutput.updatedToolOutput = replaced.stdout;
+    return parsed;
   }
 
   test("compresses ripgrep output", async () => {

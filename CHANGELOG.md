@@ -44,6 +44,14 @@ below into the release notes.
 
 ### Fixed
 
+- **Every compression was being discarded.** Claude Code validates a hook's `updatedToolOutput`
+  against the tool's own output schema; Read, Grep and Bash all return objects, and the hook
+  handed back a bare string. Claude Code rejected it — *"does not match Grep's output shape; using
+  original output"* — kept the original, and the model never saw a compressed result. Orvix went
+  on recording the saving in `gain.jsonl` regardless, so `orvix gain` reported savings that had
+  not happened. The replacement is now returned in the shape the result arrived in. Found by
+  reading a recorded session transcript; the test and benchmark fixtures replayed bare strings,
+  which is why nothing caught it, and both now use the shapes the tools really return.
 - The compression hook could exit non-zero and surface an error in the agent's transcript. Every
   guard inside it answers an unusable input by leaving the original result standing, but an
   exception escaping `main()` did the opposite — reachable with a `.orvix/symbols.json` written by
