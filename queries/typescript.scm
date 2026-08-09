@@ -48,6 +48,11 @@
 
 ; --- values ------------------------------------------------------------------
 
+; Anchored on the lexical_declaration, not the variable_declarator, so the
+; signature keeps its `const`/`let` keyword. The cost is that `const a = 1, b =
+; 2` gives a and b the same range, and `show a` prints both — deliberate: that
+; form does not occur in the projects this was measured on, and moving the
+; capture would strip the keyword from every constant in the language.
 (lexical_declaration
   (variable_declarator
     name: (identifier) @name)) @definition.constant

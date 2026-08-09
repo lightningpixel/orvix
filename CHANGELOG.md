@@ -10,6 +10,16 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Python module-level constant was given the whole file as its range, so `orvix show` on one
+  printed the entire file instead of the assignment. The tag query anchored the definition on the
+  enclosing `(module)` rather than on the assignment. Found by indexing a real project, where 58
+  of 1 086 symbols were affected; the compression hook, which maps a line back to the symbol
+  containing it, was misresolving search hits in those files for the same reason.
+- Each type in a grouped Go `type ( … )` declaration was given the whole block as its range, so
+  `orvix show` on one printed all of them.
+
 ## [0.1.0] - 2026-08-08
 
 First release.
