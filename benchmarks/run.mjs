@@ -65,10 +65,59 @@ function compress(payload) {
   if (!result.stdout || result.stdout.trim().length === 0) return undefined;
 
   try {
-    return JSON.parse(result.stdout).hookSpecificOutput?.updatedToolOutput;
+    const replaced = JSON.parse(result.stdout).hookSpecificOutput?.updatedToolOutput;
+    return unwrapResponse(replaced);
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The shape each tool's result actually has, taken from a recorded session.
+ *
+ * This used to send a bare string. Claude Code validates `updatedToolOutput`
+ * against the tool's own schema and discards a mismatch, so a benchmark that
+ * replays strings measures a path that does not exist — it reported savings on
+ * compressions that would have been thrown away in a real session.
+ */
+function wrapResponse(toolName, text) {
+  const lines = text.split("\n").length;
+
+  if (toolName === "Read") return { file: { content: text } };
+  if (toolName === "Grep") {
+    return {
+      mode: "content",
+      numFiles: 0,
+      filenames: [],
+      content: text,
+      numLines: lines,
+      totalLines: lines,
+    };
+  }
+  if (toolName === "Bash") {
+    return {
+      stdout: text,
+      stderr: "",
+      interrupted: false,
+      isImage: false,
+      noOutputExpected: false,
+    };
+  }
+  return text;
+}
+
+/** Pulls the text back out of whatever shape the hook returned. */
+function unwrapResponse(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string") return value;
+  if (typeof value.content === "string") return value.content;
+  if (typeof value.stdout === "string") return value.stdout;
+  if (value.file && typeof value.file.content === "string") {
+    return value.file.content;
+  }
+  throw new Error(
+    `hook returned a shape this harness cannot read: ${Object.keys(value).join(",")}`,
+  );
 }
 
 function runSynthetic(options) {
@@ -116,7 +165,7 @@ function runSynthetic(options) {
       session_id: `bench-${name}`,
       tool_name: fixture.tool_name,
       tool_input: resolvePaths(fixture.tool_input ?? {}, cwd),
-      tool_response: original,
+      tool_response: wrapResponse(fixture.tool_name, original),
     });
 
     const shown = replacement ?? original;
