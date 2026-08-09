@@ -26,7 +26,7 @@ $ orvix who-calls l00y  # every symbol that calls parse
 ## Results
 
 Every number below comes from a command in this repository. Measured on Orvix's own source —
-75 files, 395 symbols, 1 150 call edges, 0 call sites too ambiguous to link — on Windows with
+75 files, 402 symbols, 1 196 call edges, 0 call sites too ambiguous to link — on Windows with
 Node 24. Re-run them; they will differ on your machine and your code.
 
 ### Reading one symbol instead of one file — `npm run measure`
@@ -34,7 +34,7 @@ Node 24. Re-run them; they will differ on your machine and your code.
 | Task | Reading files | With orvix | Saved |
 |---|---|---|---|
 | Target one function (`resolveModule`) to edit it | ~2,000 | ~235 | **88%** |
-| Take in the whole project's shape | ~33,630 | ~1,998 | **94%** |
+| Take in the whole project's shape | ~35,309 | ~1,994 | **94%** |
 
 ### What the hooks actually replace — `npm run benchmark`
 
@@ -88,7 +88,7 @@ repository the files a query reads are **31%** of the cache.
 
 ### Correctness — `npm test`
 
-370 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
+394 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
 updated index is **byte-identical** to indexing the project from scratch. It has caught four real
 bugs that unit tests missed.
 
@@ -230,19 +230,33 @@ file, gets nothing, and concludes the tool is broken instead of just reading the
 
 ## Languages
 
-TypeScript · TSX · JavaScript · Python · Go · Rust · Java
+TypeScript · TSX · JavaScript · Python · Go · Rust · Java · C# · C++ · C
 
-**Java resolves fewer calls than the rest, and it is worth knowing why before you rely on it.**
-Indexing google/gson — 264 files, 5 009 symbols — 18% of call sites became edges, 32% were
-refused as ambiguous and 49% pointed into the JDK. The refusals are the rule working: Java names
-methods `get`, `add`, `create`, `value` across unrelated classes, and `x.get(…)` cannot be
-attributed without knowing the type of `x`. Only 5% of them were overloads of one method, so
-collapsing those would not help. `map`, `show` and `find` are unaffected and behave as they do
-everywhere; `who-calls` and `calls` see roughly a third of what they see in a TypeScript project,
-and ranking, which reads the call graph, is correspondingly flatter.
+`map`, `show` and `find` work the same in all of them. **The call graph does not.** Each of these
+was measured by indexing a real project:
 
-Adding one means three things: an entry in `src/core/languages.ts`, its grammar in
-`scripts/copy-grammars.mjs`, and a tag query in `queries/<id>.scm`.
+| Project | Language | Files | Calls resolved | Refused as ambiguous |
+|---|---|---|---|---|
+| curl/curl | C | 1 068 | **42%** | **2%** |
+| JamesNK/Newtonsoft.Json | C# | 945 | 27% | **59%** |
+| fmtlib/fmt | C++ | 77 | 27% | 30% |
+| google/gson | Java | 264 | 25% | 33% |
+
+The rest of each row is calls into the standard library, which resolve to nothing by design.
+
+**The split is not about the language being hard, it is about where calls go.** C has free
+functions with project-unique names, which is exactly what a syntactic resolver can follow — it
+gives the densest graph of any language here. C#, C++ and Java send most calls through a receiver
+on a typed object, and `x.Get(…)` cannot be attributed without knowing the type of `x`. Refusing
+is the rule working, not a defect; a wrong edge would be worse. Overloads are not the cause — on
+gson only 5% of ambiguous sites were overloads of one method.
+
+So: `who-calls` and `calls` are strong in C, Go, Rust, TypeScript and Python, and partial in C#,
+C++ and Java, where ranking is also flatter because it reads the call graph.
+
+Adding one means an entry in `src/core/languages.ts`, its grammar in
+`scripts/copy-grammars.mjs`, a tag query in `queries/<id>.scm`, and its scope and visibility
+rules in `src/core/extract.ts`. `AGENTS.md` has the full list.
 
 ## What the call graph does and does not know
 

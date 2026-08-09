@@ -236,6 +236,87 @@ describe("graph shape", () => {
   });
 });
 
+describe("implicit receiver", () => {
+  // In Java and C# every function is a method, and calling one of your own
+  // without `this.` is ordinary. Applying the ECMAScript rule — a bare call
+  // reaches only a non-method — drops every intra-class call in the language.
+  test("links a bare call to a method of the same Java class", async () => {
+    const { graph, id } = await scenario({
+      "G.java":
+        `public class G {\n  private int helper() { return 1; }\n` +
+        `  public int run() { return helper(); }\n}\n`,
+    });
+
+    expect(callersOf(graph, id("G.java:helper"))).toEqual([id("G.java:run")]);
+  });
+
+  test("links a bare call to a method of the same C# class", async () => {
+    const { graph, id } = await scenario({
+      "H.cs":
+        `public class H {\n  private int Helper() { return 1; }\n` +
+        `  public int Run() { return Helper(); }\n}\n`,
+    });
+
+    expect(callersOf(graph, id("H.cs:Helper"))).toEqual([id("H.cs:Run")]);
+  });
+
+  test("links a bare call to a member function in C++", async () => {
+    const { graph, id } = await scenario({
+      "s.cpp":
+        `struct S {\n  int helper() { return 1; }\n  int run() { return helper(); }\n};\n`,
+    });
+
+    expect(callersOf(graph, id("s.cpp:helper"))).toEqual([id("s.cpp:run")]);
+  });
+
+  // The rule still holds where a method genuinely needs a receiver.
+  test("still refuses a bare call to a method in TypeScript", async () => {
+    const { graph, id } = await scenario({
+      "src/a.ts":
+        `export class A {\n  validate() {}\n}\nexport function run() {\n  validate();\n}\n`,
+    });
+
+    expect(callersOf(graph, id("src/a.ts:validate"))).toEqual([]);
+  });
+
+  test("still refuses a bare call to a method in Python", async () => {
+    const { graph, id } = await scenario({
+      "a.py":
+        `class A:\n    def validate(self):\n        pass\n\ndef run():\n    validate()\n`,
+    });
+
+    expect(callersOf(graph, id("a.py:validate"))).toEqual([]);
+  });
+});
+
+describe("constructors", () => {
+  // A constructor carries its class's name, so tagging it as a symbol makes
+  // every `new S()` match two candidates and draw no edge at all. It is not
+  // separately addressable either — `show S` must mean the class — and its
+  // source sits inside the class's range regardless.
+  test("does not make `new S()` ambiguous with the class in Java", async () => {
+    const { graph, id } = await scenario({
+      "S.java":
+        `public class S {\n  public S() {}\n}\n` +
+        `class Factory {\n  S build() { return new S(); }\n}\n`,
+    });
+
+    expect(graph.ambiguous.map((a) => a.name)).toEqual([]);
+    expect(callersOf(graph, id("S.java:S"))).toEqual([id("S.java:build")]);
+  });
+
+  test("does not make `new S()` ambiguous with the class in C#", async () => {
+    const { graph, id } = await scenario({
+      "S.cs":
+        `public class S {\n  public S() {}\n}\n` +
+        `class Factory {\n  S Build() { return new S(); }\n}\n`,
+    });
+
+    expect(graph.ambiguous.map((a) => a.name)).toEqual([]);
+    expect(callersOf(graph, id("S.cs:S"))).toEqual([id("S.cs:Build")]);
+  });
+});
+
 describe("language boundaries", () => {
   // Found on a real polyglot project: the only symbol in the index named
   // `filter` was a Python logging filter, so every `xs.filter(…)` in the

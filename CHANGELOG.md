@@ -12,14 +12,29 @@ below into the release notes.
 
 ### Added
 
-- Java. Classes, records, interfaces, enums, annotation types, methods, constructors and fields,
-  with visibility read from the `public` modifier rather than inferred from the enclosing type —
-  Java says `private` out loud, and the enclosing class must not speak over it.
-  Measured on google/gson (264 files, 5 009 symbols): 18% of call sites resolved to edges, 32%
-  were refused as ambiguous, 49% pointed into the JDK. `map`, `show` and `find` behave as they do
-  in every other language; `who-calls` and `calls` see about a third of what they see in a
-  TypeScript project, because `x.get(…)` cannot be attributed without the type of `x`. The README
-  says so next to the language list.
+- Java, C#, C++ and C. `@vscode/tree-sitter-wasm` ships no C grammar; the C++ one parses C
+  without error and the tags a C file can produce are a subset, so both share a grammar, a query
+  and a resolution family — C++ calls into C without ceremony.
+- Visibility is now read per member where the language states it. `private int shut()` inside a
+  public Java class is private; inferring it from the enclosing type, as the ECMAScript path
+  does, contradicted the source.
+- A call written without a receiver may now reach a method, in languages where every function is
+  one. `helper()` inside a Java, C# or C++ class means `this.helper()`, so applying the
+  ECMAScript rule — a bare call reaches only a non-method — dropped every intra-class call in
+  those languages. It still holds for ECMAScript, Python, Go and Rust, where a method needs its
+  receiver spelled out.
+- Constructors are no longer indexed. One carries the name of the type it builds, so a symbol for
+  it made `show S` ambiguous and left every call site naming `S` with two candidates and no edge.
+  Nothing is lost: a constructor is not separately addressable, and its source sits inside the
+  class's range.
+- Each new language was measured against a real project rather than fixtures, and the results
+  differ enough to be worth publishing: C resolves 42% of call sites with 2% refused as
+  ambiguous (curl), while C# resolves 27% with 59% refused (Newtonsoft.Json), C++ 27% with 30%
+  (fmt) and Java 25% with 33% (gson). C has free functions with project-unique names, which is
+  what a syntactic resolver can follow; the others send most calls through a receiver on a typed
+  object, which it cannot. The README carries the table.
+- Packed size grows from 703 kB to 1.4 MB: the C# and C++ grammars are 4.9 and 5.1 MB
+  unpacked, against 405 kB for Java.
 
 ### Changed
 

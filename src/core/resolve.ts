@@ -1,6 +1,10 @@
 import { posix } from "node:path";
 import type { FileEntry, IndexedSymbol, OrvixIndex } from "../types.js";
-import { familyForPath, supportedExtensions } from "./languages.js";
+import {
+  allowsImplicitReceiver,
+  familyForPath,
+  supportedExtensions,
+} from "./languages.js";
 
 export interface CallEdge {
   /** Caller symbol id, or null when the call sits at file scope. */
@@ -98,6 +102,7 @@ export function buildCallGraph(
     const local = groupByName(entry.symbols);
     const imported = importedSymbols(index, file, entry);
     const family = familyForPath(file);
+    const implicitReceiver = allowsImplicitReceiver(file);
 
     for (const reference of entry.references) {
       const from =
@@ -109,7 +114,7 @@ export function buildCallGraph(
         const filtered = bucket?.filter((symbol) =>
           reference.viaMember
             ? symbol.kind === "method"
-            : symbol.kind !== "method",
+            : symbol.kind !== "method" || implicitReceiver,
         );
         return filtered && filtered.length > 0 ? filtered : undefined;
       };
