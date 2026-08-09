@@ -10,6 +10,8 @@ below into the release notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-09
+
 ### Added
 
 - Java, C#, C++ and C. `@vscode/tree-sitter-wasm` ships no C grammar; the C++ one parses C
@@ -115,5 +117,6 @@ First release.
   same-file scope and project-unique names.
 - Functions inside a Rust `impl` block are reported without a container.
 
-[Unreleased]: https://github.com/lightningpixel/orvix/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lightningpixel/orvix/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lightningpixel/orvix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lightningpixel/orvix/releases/tag/v0.1.0
