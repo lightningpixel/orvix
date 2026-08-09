@@ -26,6 +26,9 @@
 
 ; --- values ------------------------------------------------------------------
 
+; Anchored on the lexical_declaration for the same reason as typescript.scm:
+; the signature keeps its keyword, at the cost of `const a = 1, b = 2` sharing
+; one range.
 (lexical_declaration
   (variable_declarator
     name: (identifier) @name)) @definition.constant

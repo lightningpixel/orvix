@@ -15,11 +15,14 @@
 (class_definition
   name: (identifier) @name) @definition.class
 
-; Module-level assignments. Nested ones are dropped by the local-scope rule.
+; Module-level assignments. The `(module ...)` context restricts the match to
+; the top level, but the definition capture belongs on the assignment: anchored
+; on the module it would give every constant the whole file as its range, and
+; `show` would print the file instead of the line.
 (module
   (expression_statement
     (assignment
-      left: (identifier) @name))) @definition.constant
+      left: (identifier) @name) @definition.constant))
 
 ; --- call sites --------------------------------------------------------------
 
