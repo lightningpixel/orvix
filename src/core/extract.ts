@@ -35,6 +35,8 @@ const ECMASCRIPT_SCOPES = new Set([
   "method_definition",
 ]);
 
+const CPP_SCOPES = new Set(["function_definition", "lambda_expression"]);
+
 const LOCAL_SCOPES: Record<string, Set<string>> = {
   typescript: ECMASCRIPT_SCOPES,
   tsx: ECMASCRIPT_SCOPES,
@@ -47,6 +49,15 @@ const LOCAL_SCOPES: Record<string, Set<string>> = {
     "constructor_declaration",
     "lambda_expression",
   ]),
+  csharp: new Set([
+    "method_declaration",
+    "constructor_declaration",
+    "accessor_declaration",
+    "local_function_statement",
+    "lambda_expression",
+  ]),
+  cpp: CPP_SCOPES,
+  c: CPP_SCOPES,
 };
 
 /**
@@ -204,7 +215,7 @@ function promoteToMethods(symbols: RawSymbol[]): void {
  * must not speak for it. `private int shut()` inside a public class is
  * private, and saying otherwise contradicts the source.
  */
-const STATES_MEMBER_VISIBILITY = new Set(["java"]);
+const STATES_MEMBER_VISIBILITY = new Set(["java", "csharp"]);
 
 /**
  * A public method of an exported class is part of the file's public surface
@@ -360,6 +371,18 @@ function isExported(node: Node, name: string, languageId: string): boolean {
     case "java":
       return /\bpublic\b/.test(modifiersOf(node));
 
+    // C# writes each modifier as its own node rather than grouping them.
+    case "csharp":
+      return hasChildWithText(node, "modifier", "public");
+
+    // C and C++ have no export list. `static` at file scope is the one thing
+    // that genuinely narrows a name's reach, so it is what marks a symbol
+    // private; access specifiers inside a class are siblings of the member
+    // rather than children, and are not read.
+    case "cpp":
+    case "c":
+      return !hasChildWithText(node, "storage_class_specifier", "static");
+
     default:
       return false;
   }
@@ -377,6 +400,15 @@ function modifiersOf(node: Node): string {
     if (child?.type === "modifiers") return child.text;
   }
   return "";
+}
+
+/** Whether a direct child of this type carries exactly this text. */
+function hasChildWithText(node: Node, type: string, text: string): boolean {
+  for (let index = 0; index < node.childCount; index += 1) {
+    const child = node.child(index);
+    if (child?.type === type && child.text === text) return true;
+  }
+  return false;
 }
 
 function hasChildOfType(node: Node, type: string): boolean {

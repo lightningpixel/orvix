@@ -73,6 +73,24 @@ export const LANGUAGES: readonly LanguageDef[] = [
   },
   { id: "go", grammar: "tree-sitter-go.wasm", extensions: [".go"] },
   { id: "java", grammar: "tree-sitter-java.wasm", extensions: [".java"] },
+  { id: "csharp", grammar: "tree-sitter-c-sharp.wasm", extensions: [".cs"] },
+  {
+    id: "cpp",
+    grammar: "tree-sitter-cpp.wasm",
+    extensions: [".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"],
+    // C++ calls into C without ceremony, so the two resolve into each other.
+    family: "c",
+  },
+  {
+    id: "c",
+    // @vscode/tree-sitter-wasm ships no C grammar. The C++ one parses C
+    // without error, and the tags a C file can produce are a subset, so the
+    // query is shared too.
+    grammar: "tree-sitter-cpp.wasm",
+    extensions: [".c", ".h"],
+    queryId: "cpp",
+    family: "c",
+  },
   { id: "rust", grammar: "tree-sitter-rust.wasm", extensions: [".rs"] },
 ];
 

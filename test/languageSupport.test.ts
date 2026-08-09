@@ -250,6 +250,136 @@ describe("java", () => {
   });
 });
 
+describe("csharp", () => {
+  test("reads types and members", async () => {
+    const f = await facts(
+      "src/Service.cs",
+      `namespace App {\n` +
+        `  public interface IRunner { void Run(); }\n` +
+        `  public enum Mode { Fast }\n` +
+        `  public struct Point { public int X; }\n` +
+        `  public class Service {\n` +
+        `    public int Run() { return Helper(); }\n` +
+        `    private int Helper() => 1;\n  }\n}\n`,
+    );
+
+    const found = summary(f);
+    expect(found["IRunner"]).toBe("interface*");
+    expect(found["Mode"]).toBe("enum*");
+    expect(found["Point"]).toBe("class*");
+    expect(found["Service.Run"]).toBe("method*");
+    expect(found["Service.Helper"]).toBe("method");
+  });
+
+  test("distinguishes a call through a receiver from a bare one", async () => {
+    const f = await facts(
+      "src/Service.cs",
+      `class S {\n  void R(Other other) {\n    Helper();\n    other.Compute();\n  }\n}\n`,
+    );
+
+    expect(f.references.find((r) => r.name === "Helper")?.viaMember).toBe(false);
+    expect(f.references.find((r) => r.name === "Compute")?.viaMember).toBe(true);
+  });
+
+  test("ignores variables local to a method", async () => {
+    const f = await facts(
+      "src/Service.cs",
+      `class S {\n  int R() {\n    int inner = 2;\n    return inner;\n  }\n}\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name).sort()).toEqual(["R", "S"]);
+  });
+});
+
+describe("cpp", () => {
+  test("reads functions, classes, structs and enums", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `int helper() { return 1; }\n` +
+        `class Service {\npublic:\n  int inline_run() { return helper(); }\n};\n` +
+        `struct Point { int x; };\n` +
+        `enum Mode { Fast };\n`,
+    );
+
+    const found = summary(f);
+    expect(found["helper"]).toBe("function*");
+    expect(found["Service"]).toBe("class*");
+    expect(found["Point"]).toBe("class*");
+    expect(found["Mode"]).toBe("enum*");
+    expect(found["Service.inline_run"]).toBe("method*");
+  });
+
+  // `int Service::run() { … }` sits outside the class, so containment cannot
+  // make it a method. Tagged as one directly, or `obj.run()` could never
+  // reach it — a bare call and a receiver call are kept apart on kind.
+  test("reads an out-of-line definition as a method, under its own name", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `struct Service { int run(); };\nint Service::run() { return 1; }\n`,
+    );
+
+    const run = f.symbols.filter((s) => s.name === "run");
+    expect(run).toHaveLength(1);
+    expect(run[0]?.kind).toBe("method");
+  });
+
+  test("does not index a member declaration as a second symbol", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `struct Service {\n  int run();\n  int other();\n};\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name)).toEqual(["Service"]);
+  });
+
+  test("treats a static function as file-local", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `static int hidden() { return 1; }\nint shown() { return 2; }\n`,
+    );
+
+    expect(
+      Object.fromEntries(f.symbols.map((s) => [s.name, s.exported])),
+    ).toEqual({ hidden: false, shown: true });
+  });
+
+  test("ignores variables local to a function", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `int run() {\n  int inner = 2;\n  return inner;\n}\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name)).toEqual(["run"]);
+  });
+});
+
+describe("c", () => {
+  test("reads functions and structs through the C++ grammar", async () => {
+    const f = await facts(
+      "src/main.c",
+      `#include <stdio.h>\n` +
+        `static int helper(void) { return 1; }\n` +
+        `int run(void) { return helper(); }\n` +
+        `struct Point { int x; };\n`,
+    );
+
+    const found = summary(f);
+    expect(found["helper"]).toBe("function");
+    expect(found["run"]).toBe("function*");
+    expect(found["Point"]).toBe("class*");
+  });
+
+  test("records a call and its caller", async () => {
+    const f = await facts(
+      "src/main.c",
+      `int helper(void) { return 1; }\nint run(void) { return helper(); }\n`,
+    );
+
+    const run = f.symbols.findIndex((s) => s.name === "run");
+    expect(f.references.find((r) => r.name === "helper")?.fromSymbol).toBe(run);
+  });
+});
+
 describe("rust", () => {
   test("reads functions, structs, enums and traits", async () => {
     const f = await facts(

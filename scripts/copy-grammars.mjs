@@ -20,6 +20,9 @@ const GRAMMARS = [
   "tree-sitter-go.wasm",
   "tree-sitter-rust.wasm",
   "tree-sitter-java.wasm",
+  "tree-sitter-c-sharp.wasm",
+  // Serves both C++ and C; there is no C grammar in this package.
+  "tree-sitter-cpp.wasm",
 ];
 
 const available = await readdir(SOURCE).catch(() => {
