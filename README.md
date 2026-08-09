@@ -35,7 +35,7 @@ hau4  test/parser.test.ts:5 function definitionOf(path: string, source: string)
 ## Install
 
 ```bash
-npm install -g orvix
+npm install -g orvix-cli
 cd your-project
 orvix init
 ```
