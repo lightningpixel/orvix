@@ -1,5 +1,5 @@
 {
-  "name": "orvix",
+  "name": "orvix-cli",
   "version": "0.2.0",
   "description": "Semantic code map for AI agents — index a codebase once, address every symbol by a short code, read only what you need.",
   "keywords": [
