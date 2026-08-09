@@ -235,3 +235,39 @@ describe("graph shape", () => {
     ]);
   });
 });
+
+describe("language boundaries", () => {
+  // Found on a real polyglot project: the only symbol in the index named
+  // `filter` was a Python logging filter, so every `xs.filter(…)` in the
+  // TypeScript half resolved to it — 41 callers that cannot exist.
+  test("does not link a TypeScript call to a Python definition", async () => {
+    const { graph, id } = await scenario({
+      "api/main.py": `class Handler:\n    def filter(self, record):\n        return True\n`,
+      "src/a.ts": `export function run(items: number[]) {\n  return items.filter((n) => n > 0);\n}\n`,
+    });
+
+    expect(callersOf(graph, id("api/main.py:filter"))).toEqual([]);
+  });
+
+  test("does not link a Python call to a Go definition", async () => {
+    const { graph, id } = await scenario({
+      "main.go": `package main\n\nfunc Compute() int { return 1 }\n`,
+      "run.py": `def start():\n    return Compute()\n`,
+    });
+
+    expect(callersOf(graph, id("main.go:Compute"))).toEqual([]);
+  });
+
+  // TypeScript, TSX and JavaScript are one ecosystem and must keep resolving
+  // across the boundary, or the fix costs more than the bug.
+  test("still links a TSX call to a TypeScript definition", async () => {
+    const { graph, id } = await scenario({
+      "src/util.ts": `export function format(n: number): string {\n  return String(n);\n}\n`,
+      "src/App.tsx": `import { format } from "./util";\nexport function App() {\n  return <p>{format(1)}</p>;\n}\n`,
+    });
+
+    expect(callersOf(graph, id("src/util.ts:format"))).toEqual([
+      id("src/App.tsx:App"),
+    ]);
+  });
+});

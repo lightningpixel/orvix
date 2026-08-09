@@ -9,6 +9,28 @@ export interface LanguageDef {
   extensions: string[];
   /** Basename of the query file in queries/. Defaults to `id`. */
   queryId?: string;
+  /**
+   * Languages that can call into each other. Defaults to `id`, so a language
+   * is its own family and resolution never crosses it.
+   */
+  family?: string;
+}
+
+/** The family a language resolves within. */
+export function familyOf(language: LanguageDef): string {
+  return language.family ?? language.id;
+}
+
+/**
+ * The family a file's calls may reach, or undefined for an unindexed path.
+ *
+ * Resolution by project-unique name has no type information to fall back on,
+ * so without this a TypeScript `xs.filter(…)` matches a Python method named
+ * `filter` purely because the name is unique — an edge that cannot exist.
+ */
+export function familyForPath(path: string): string | undefined {
+  const language = languageForPath(path);
+  return language ? familyOf(language) : undefined;
 }
 
 /** Which queries/<name>.scm file drives this language's extraction. */
@@ -25,6 +47,9 @@ export const LANGUAGES: readonly LanguageDef[] = [
     id: "typescript",
     grammar: "tree-sitter-typescript.wasm",
     extensions: [".ts", ".mts", ".cts"],
+    // TypeScript, TSX and JavaScript are one module system: a .tsx importing
+    // from a .ts is an ordinary call, not a crossing.
+    family: "ecmascript",
   },
   {
     id: "tsx",
@@ -33,11 +58,13 @@ export const LANGUAGES: readonly LanguageDef[] = [
     // The tsx grammar is the typescript grammar plus JSX; the node types the
     // tag query relies on are identical, so the query is shared.
     queryId: "typescript",
+    family: "ecmascript",
   },
   {
     id: "javascript",
     grammar: "tree-sitter-javascript.wasm",
     extensions: [".js", ".jsx", ".mjs", ".cjs"],
+    family: "ecmascript",
   },
   {
     id: "python",

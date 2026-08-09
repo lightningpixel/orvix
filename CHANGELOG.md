@@ -10,6 +10,15 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Calls no longer resolve across languages. The last resort of resolution — a project-wide unique
+  exported name — had no notion of language, so in a mixed repository a TypeScript `xs.filter(…)`
+  matched a Python method named `filter` simply because that name was unique. On a real 155-file
+  TypeScript-and-Python project this produced 103 false call edges, and `who-calls` on that Python
+  method listed 41 TypeScript callers that cannot exist. TypeScript, TSX and JavaScript share one
+  family and still resolve into each other.
+
 ## [0.1.0] - 2026-08-08
 
 First release.

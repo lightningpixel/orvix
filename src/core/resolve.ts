@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import type { FileEntry, IndexedSymbol, OrvixIndex } from "../types.js";
-import { supportedExtensions } from "./languages.js";
+import { familyForPath, supportedExtensions } from "./languages.js";
 
 export interface CallEdge {
   /** Caller symbol id, or null when the call sits at file scope. */
@@ -97,6 +97,7 @@ export function buildCallGraph(
 
     const local = groupByName(entry.symbols);
     const imported = importedSymbols(index, file, entry);
+    const family = familyForPath(file);
 
     for (const reference of entry.references) {
       const from =
@@ -113,10 +114,16 @@ export function buildCallGraph(
         return filtered && filtered.length > 0 ? filtered : undefined;
       };
 
+      // Only the project-wide tier needs the family check. The first two are
+      // already confined to one file or to what it imports.
+      const projectWide = exportedByName
+        .get(reference.name)
+        ?.filter((symbol) => familyForPath(symbol.file) === family);
+
       const candidates =
         reachable(local.get(reference.name)) ??
         reachable(imported.get(reference.name)) ??
-        reachable(exportedByName.get(reference.name));
+        reachable(projectWide);
 
       if (!candidates || candidates.length === 0) {
         graph.unresolved += 1;
