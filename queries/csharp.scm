@@ -33,8 +33,9 @@
 (method_declaration
   name: (identifier) @name) @definition.method
 
-(constructor_declaration
-  name: (identifier) @name) @definition.method
+; Constructors are deliberately not tagged, for the same reason as java.scm:
+; one carries its class's name, so a symbol for it makes every `new S()`
+; ambiguous with the class and no edge is drawn.
 
 ; A property is read like a field and never called, so it is a value rather
 ; than a method — the kind decides what a receiver call may reach.

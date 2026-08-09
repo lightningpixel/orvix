@@ -30,8 +30,10 @@
 (method_declaration
   name: (identifier) @name) @definition.method
 
-(constructor_declaration
-  name: (identifier) @name) @definition.method
+; Constructors are deliberately not tagged. One carries its class's name, so a
+; symbol for it makes every `new S()` match two candidates and draw no edge at
+; all. It is not separately addressable either — `show S` must mean the class —
+; and its source sits inside the class's range regardless.
 
 ; A field, anchored on the declaration so the signature keeps its modifiers and
 ; type. `int a = 1, b = 2` therefore gives a and b one range, the same trade-off

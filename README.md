@@ -26,7 +26,7 @@ $ orvix who-calls l00y  # every symbol that calls parse
 ## Results
 
 Every number below comes from a command in this repository. Measured on Orvix's own source —
-75 files, 399 symbols, 1 177 call edges, 0 call sites too ambiguous to link — on Windows with
+75 files, 402 symbols, 1 196 call edges, 0 call sites too ambiguous to link — on Windows with
 Node 24. Re-run them; they will differ on your machine and your code.
 
 ### Reading one symbol instead of one file — `npm run measure`
@@ -34,7 +34,7 @@ Node 24. Re-run them; they will differ on your machine and your code.
 | Task | Reading files | With orvix | Saved |
 |---|---|---|---|
 | Target one function (`resolveModule`) to edit it | ~2,000 | ~235 | **88%** |
-| Take in the whole project's shape | ~34,600 | ~1,999 | **94%** |
+| Take in the whole project's shape | ~35,309 | ~1,994 | **94%** |
 
 ### What the hooks actually replace — `npm run benchmark`
 
@@ -88,7 +88,7 @@ repository the files a query reads are **31%** of the cache.
 
 ### Correctness — `npm test`
 
-385 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
+394 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
 updated index is **byte-identical** to indexing the project from scratch. It has caught four real
 bugs that unit tests missed.
 
@@ -238,9 +238,9 @@ was measured by indexing a real project:
 | Project | Language | Files | Calls resolved | Refused as ambiguous |
 |---|---|---|---|---|
 | curl/curl | C | 1 068 | **42%** | **2%** |
-| JamesNK/Newtonsoft.Json | C# | 945 | 22% | **57%** |
-| fmtlib/fmt | C++ | 77 | 21% | 29% |
-| google/gson | Java | 264 | 18% | 32% |
+| JamesNK/Newtonsoft.Json | C# | 945 | 27% | **59%** |
+| fmtlib/fmt | C++ | 77 | 27% | 30% |
+| google/gson | Java | 264 | 25% | 33% |
 
 The rest of each row is calls into the standard library, which resolve to nothing by design.
 

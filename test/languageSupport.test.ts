@@ -332,6 +332,28 @@ describe("cpp", () => {
     expect(f.symbols.map((s) => s.name)).toEqual(["Service"]);
   });
 
+  // C++ has no distinct constructor node: one is a function_definition whose
+  // name happens to equal its class's. Left indexed it duplicates the class's
+  // name, making `show S` ambiguous and costing every call site that names S.
+  test("does not index a constructor as a second symbol", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `struct S {\n  S();\n  int run();\n};\n` +
+        `S::S() {}\nint S::run() { return 1; }\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name).sort()).toEqual(["S", "run"]);
+  });
+
+  test("does not index an inline constructor either", async () => {
+    const f = await facts(
+      "src/service.cpp",
+      `struct S {\n  S() {}\n  int run() { return 1; }\n};\n`,
+    );
+
+    expect(f.symbols.map((s) => s.name).sort()).toEqual(["S", "run"]);
+  });
+
   test("treats a static function as file-local", async () => {
     const f = await facts(
       "src/service.cpp",

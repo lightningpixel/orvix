@@ -173,7 +173,10 @@ function collect(
     });
   }
 
-  const kept = dedupe(symbols).sort((a, b) => a.startByte - b.startByte);
+  const kept = dropConstructors(
+    dedupe(symbols).sort((a, b) => a.startByte - b.startByte),
+    def.id,
+  );
   assignContainers(kept);
   promoteToMethods(kept);
   if (!STATES_MEMBER_VISIBILITY.has(def.id)) {
@@ -208,6 +211,34 @@ function promoteToMethods(symbols: RawSymbol[]): void {
   for (const symbol of symbols) {
     if (symbol.kind === "function" && symbol.container) symbol.kind = "method";
   }
+}
+
+/**
+ * Languages with no constructor node, where a constructor is an ordinary
+ * function definition that happens to carry its class's name. Java and C# name
+ * theirs in the grammar, so their queries simply do not tag them.
+ */
+const CONSTRUCTORS_LOOK_LIKE_FUNCTIONS = new Set(["cpp", "c"]);
+
+/**
+ * Drops constructors, which duplicate the name of the type they build.
+ *
+ * Left indexed, `S` names both the class and its constructor: `show S` becomes
+ * ambiguous, and every call site naming S matches two candidates so no edge is
+ * drawn at all. Nothing is lost — a constructor is not separately addressable,
+ * and its source sits inside the class's range.
+ */
+function dropConstructors(symbols: RawSymbol[], languageId: string): RawSymbol[] {
+  if (!CONSTRUCTORS_LOOK_LIKE_FUNCTIONS.has(languageId)) return symbols;
+
+  const types = new Set(
+    symbols.filter((s) => CONTAINER_KINDS.has(s.kind)).map((s) => s.name),
+  );
+  if (types.size === 0) return symbols;
+
+  return symbols.filter(
+    (symbol) => !types.has(symbol.name) || CONTAINER_KINDS.has(symbol.kind),
+  );
 }
 
 /**

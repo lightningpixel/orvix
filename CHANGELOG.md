@@ -18,10 +18,19 @@ below into the release notes.
 - Visibility is now read per member where the language states it. `private int shut()` inside a
   public Java class is private; inferring it from the enclosing type, as the ECMAScript path
   does, contradicted the source.
+- A call written without a receiver may now reach a method, in languages where every function is
+  one. `helper()` inside a Java, C# or C++ class means `this.helper()`, so applying the
+  ECMAScript rule — a bare call reaches only a non-method — dropped every intra-class call in
+  those languages. It still holds for ECMAScript, Python, Go and Rust, where a method needs its
+  receiver spelled out.
+- Constructors are no longer indexed. One carries the name of the type it builds, so a symbol for
+  it made `show S` ambiguous and left every call site naming `S` with two candidates and no edge.
+  Nothing is lost: a constructor is not separately addressable, and its source sits inside the
+  class's range.
 - Each new language was measured against a real project rather than fixtures, and the results
   differ enough to be worth publishing: C resolves 42% of call sites with 2% refused as
-  ambiguous (curl), while C# resolves 22% with 57% refused (Newtonsoft.Json), C++ 21% with 29%
-  (fmt) and Java 18% with 32% (gson). C has free functions with project-unique names, which is
+  ambiguous (curl), while C# resolves 27% with 59% refused (Newtonsoft.Json), C++ 27% with 30%
+  (fmt) and Java 25% with 33% (gson). C has free functions with project-unique names, which is
   what a syntactic resolver can follow; the others send most calls through a receiver on a typed
   object, which it cannot. The README carries the table.
 - Packed size grows from 703 kB to 1.4 MB: the C# and C++ grammars are 4.9 and 5.1 MB

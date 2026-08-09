@@ -14,6 +14,20 @@ export interface LanguageDef {
    * is its own family and resolution never crosses it.
    */
   family?: string;
+  /**
+   * Whether a call written without a receiver may still reach a method.
+   *
+   * True where every function is a member and `helper()` inside a class means
+   * `this.helper()` — Java, C#, C++. False where a method always needs its
+   * receiver spelled out, so a bare `helper()` can only be a free function:
+   * ECMAScript, Python (`self.`), Go, Rust (`self.`).
+   */
+  implicitReceiver?: boolean;
+}
+
+/** See `LanguageDef.implicitReceiver`. */
+export function allowsImplicitReceiver(path: string): boolean {
+  return languageForPath(path)?.implicitReceiver === true;
 }
 
 /** The family a language resolves within. */
@@ -72,14 +86,25 @@ export const LANGUAGES: readonly LanguageDef[] = [
     extensions: [".py", ".pyi"],
   },
   { id: "go", grammar: "tree-sitter-go.wasm", extensions: [".go"] },
-  { id: "java", grammar: "tree-sitter-java.wasm", extensions: [".java"] },
-  { id: "csharp", grammar: "tree-sitter-c-sharp.wasm", extensions: [".cs"] },
+  {
+    id: "java",
+    grammar: "tree-sitter-java.wasm",
+    extensions: [".java"],
+    implicitReceiver: true,
+  },
+  {
+    id: "csharp",
+    grammar: "tree-sitter-c-sharp.wasm",
+    extensions: [".cs"],
+    implicitReceiver: true,
+  },
   {
     id: "cpp",
     grammar: "tree-sitter-cpp.wasm",
     extensions: [".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"],
     // C++ calls into C without ceremony, so the two resolve into each other.
     family: "c",
+    implicitReceiver: true,
   },
   {
     id: "c",
@@ -90,6 +115,9 @@ export const LANGUAGES: readonly LanguageDef[] = [
     extensions: [".c", ".h"],
     queryId: "cpp",
     family: "c",
+    // C itself has no methods, so this changes nothing for a C file. It is
+    // set because `.h` is claimed here and a C++ header does have them.
+    implicitReceiver: true,
   },
   { id: "rust", grammar: "tree-sitter-rust.wasm", extensions: [".rs"] },
 ];
