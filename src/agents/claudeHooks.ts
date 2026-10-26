@@ -33,7 +33,7 @@ const SCRIPT = (name: string) =>
   `node "$CLAUDE_PROJECT_DIR/.claude/hooks/${name}"`;
 
 /**
- * The three hooks, and why each is registered the way it is.
+ * The hooks, and why each is registered the way it is.
  *
  * Both `async` hooks do work nobody is waiting on, so they are kept off the
  * turn's critical path entirely. The compressor cannot be async: it has to
@@ -57,6 +57,14 @@ export function orvixHooks(): Record<string, HookMatcher[]> {
         matcher: "Read|Grep|Bash",
         [HOOK_MARKER]: true,
         hooks: [{ type: "command", command: SCRIPT("orvix-compress.mjs"), timeout: 10 }],
+      },
+    ],
+    UserPromptSubmit: [
+      {
+        // Synchronous for the same reason as the compressor: the map has to
+        // arrive with the prompt, or the model has already gone searching.
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-focus.mjs"), timeout: 10 }],
       },
     ],
     Stop: [

@@ -10,6 +10,25 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `orvix map --focus <id|name|file>…` centres the map on what a task touches. It is PageRank
+  restarted only at those symbols, over call edges taken in both directions, so a parser's private
+  caller outranks a busy exported surface that has nothing to do with it. The token budget is
+  honoured exactly as before.
+- A `UserPromptSubmit` hook, `orvix-focus`, hands the model that map before its first tool
+  call. Every other hook reacts to a call the model already chose to make; this is the one point
+  where Orvix acts first. Only words that look like code count — camelCase, snake_case,
+  `Service.validate`, a path, anything in backticks — so "run the map again" focuses on nothing,
+  even in a project with symbols called `run` and `map`. Off with `"focusPrompt": false` in
+  `.orvix/config.json`; `"focusBudget"` sets its size (800 tokens by default).
+
+### Fixed
+
+- Edits to Java, C#, C++ and C files were never marked dirty, so queries answered from the stale
+  index until the turn ended. The dirty hook's extension list stopped at Rust, and so did the
+  agent instruction block, which told agents to read those files directly.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added

@@ -15,6 +15,7 @@ export function instructionBlock(): string {
 This project is indexed by orvix. Prefer it over \`grep\` and over reading whole files.
 
 - \`orvix map --budget 2000\` — the project's symbols, most important first
+- \`orvix map --focus <id|name|file>\` — the same map, centred on what your task touches
 - \`orvix show <id>\` — one symbol's exact source. Do not read the whole file.
 - \`orvix find <name>\` — locate a symbol when you don't have its id
 - \`orvix who-calls <id>\` — every caller. Run this before changing a signature.

@@ -60,6 +60,10 @@ export function buildCli(): Command {
     .description("print the symbol tree, ranked and fitted to a token budget")
     .argument("[path]", "project root", ".")
     .option("-b, --budget <tokens>", "approximate token budget", "2000")
+    .option(
+      "-f, --focus <targets...>",
+      "centre the map on these ids, names or files instead of global importance",
+    )
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((path, options) => runMap(path, options)));
