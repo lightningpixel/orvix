@@ -52,7 +52,9 @@ export async function runWhoCalls(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  return relatives(path, query, options, callersOf);
+  return relatives(path, query, options, callersOf, (session, id) =>
+    (session.graph.dispatch[id] ?? []).map(({ from, channel }) => ({ id: from, channel })),
+  );
 }
 
 /** `orvix calls` — the symbols this one calls. */
@@ -61,7 +63,11 @@ export async function runCalls(
   query: string,
   options: QueryOptions = {},
 ): Promise<CommandResult> {
-  return relatives(path, query, options, calleesOf);
+  return relatives(path, query, options, calleesOf, (session, id) =>
+    Object.entries(session.graph.dispatch).flatMap(([handler, records]) =>
+      records.filter((record) => record.from === id).map(({ channel }) => ({ id: handler, channel })),
+    ),
+  );
 }
 
 async function relatives(
@@ -69,6 +75,8 @@ async function relatives(
   query: string,
   options: QueryOptions,
   pick: (session: QuerySession, id: string) => string[],
+  /** Links made through a channel name, listed apart from the calls. */
+  viaChannel: (session: QuerySession, id: string) => Array<{ id: string; channel: string }>,
 ): Promise<CommandResult> {
   const session = await openQuery(path);
   const found = resolveOrExplain(session, query);
@@ -79,11 +87,23 @@ async function relatives(
     .filter((symbol) => ids.has(symbol.id))
     .sort((a, b) => rankOf(session, b.id) - rankOf(session, a.id));
 
-  if (options.json) return { output: JSON.stringify(related, null, 2), ok: true };
-  return {
-    output: renderList(related, session.symbols, session.graph),
-    ok: true,
-  };
+  const channels = viaChannel(session, found.symbol.id);
+  const dispatched = channels
+    .map(({ id, channel }) => ({ symbol: session.symbols.symbols[id], channel }))
+    .filter((entry): entry is { symbol: IndexedSymbol; channel: string } => entry.symbol !== undefined);
+
+  if (options.json) {
+    const viaJson = dispatched.map(({ symbol, channel }) => ({ ...symbol, via: channel }));
+    return { output: JSON.stringify([...related, ...viaJson], null, 2), ok: true };
+  }
+
+  const lines = related.length > 0 || dispatched.length === 0
+    ? [renderList(related, session.symbols, session.graph)]
+    : [];
+  for (const { symbol, channel } of dispatched) {
+    lines.push(`${renderList([symbol], session.symbols, session.graph)}  ⇢ via "${channel}"`);
+  }
+  return { output: lines.join("\n"), ok: true };
 }
 
 /** `orvix find` — search symbols by name or signature. */

@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { buildFileEntry, type Extractor } from "./indexer.js";
 import { languageForPath } from "./languages.js";
+import { packageResolver } from "./packages.js";
 import { WIDE, projectIndex } from "./project.js";
 import { rankSymbols } from "./rank.js";
 import { buildCallGraph, type CallGraph } from "./resolve.js";
@@ -141,7 +142,7 @@ export async function reindex(
     ? rankSymbols(index, toCallGraph(merged))
     : carriedRanks(previousTable, index);
 
-  const projected = projectIndex(index, toCallGraph(merged), ranks);
+  const projected = projectIndex(index, toCallGraph(merged), ranks, packageResolver(root));
 
   await saveIndex(root, index);
   await saveProjection(root, projected);
@@ -293,6 +294,8 @@ function spliceGraph(
     refsByName: previous.refsByName,
     exportSig: previous.exportSig,
     ambiguous: [...keptAmbiguous, ...partial.ambiguous],
+    // Rebuilt whole from the facts when this is projected; see dispatch.ts.
+    dispatch: {},
     unresolvedByFile,
     unresolved: Object.values(unresolvedByFile).reduce((a, b) => a + b, 0),
   };

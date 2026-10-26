@@ -9,6 +9,8 @@ export interface ImpactLayer {
 export interface Impact {
   target: IndexedSymbol;
   layers: ImpactLayer[];
+  /** Dependants reached through a channel name rather than a call: id -> channel. */
+  via: Record<string, string>;
   /** Files calling the target or one of its dependants from file scope. */
   fileScope: string[];
   /** Test files among everything above, which is what to run after a change. */
@@ -31,6 +33,7 @@ export function impactOf(
 ): Impact {
   const seen = new Set([target.id]);
   const layers: ImpactLayer[] = [];
+  const via: Record<string, string> = {};
   let frontier = [target.id];
 
   for (let depth = 1; depth <= maxDepth && frontier.length > 0; depth += 1) {
@@ -40,6 +43,12 @@ export function impactOf(
         if (seen.has(caller)) continue;
         seen.add(caller);
         next.push(caller);
+      }
+      for (const { from, channel } of graph.dispatch[id] ?? []) {
+        if (seen.has(from)) continue;
+        seen.add(from);
+        via[from] = channel;
+        next.push(from);
       }
     }
 
@@ -63,6 +72,7 @@ export function impactOf(
   return {
     target,
     layers,
+    via,
     fileScope: [...fileScope].sort(),
     tests: [...reached].filter(isTestFile).sort(),
   };

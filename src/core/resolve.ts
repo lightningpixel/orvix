@@ -205,7 +205,7 @@ function addTo(
   else map.set(key, new Set([value]));
 }
 
-function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
+export function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
   const grouped = new Map<string, IndexedSymbol[]>();
 
   for (const symbol of symbols) {
@@ -225,7 +225,7 @@ function groupMethodsByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
   );
 }
 
-function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
+export function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
   const exported = Object.values(index.files).flatMap((entry) =>
     entry.symbols.filter((symbol) => symbol.exported),
   );
@@ -234,7 +234,7 @@ function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
 }
 
 /** Names this file imports, mapped to the definitions they point at. */
-function importedSymbols(
+export function importedSymbols(
   index: OrvixIndex,
   file: string,
   entry: FileEntry,

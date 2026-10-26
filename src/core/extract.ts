@@ -11,6 +11,7 @@ import type {
 import { queryIdOf, type LanguageDef } from "./languages.js";
 import { loadLanguage, parse } from "./parser.js";
 import { queriesDir } from "./paths.js";
+import { channelSite, type RawChannelSite } from "./channels.js";
 import { ReceiverTypes, THIS } from "./receivers.js";
 
 /** Kinds that other definitions can be nested inside. */
@@ -134,6 +135,7 @@ function collect(
   const pendingRefs: Array<Omit<RawReference, "fromSymbol">> = [];
   const imports: RawImport[] = [];
   const types = new ReceiverTypes(tree.rootNode, def.id);
+  const sites: RawChannelSite[] = [];
 
   for (const match of query.matches(tree.rootNode)) {
     const named = match.captures.find((c) => c.name === "name")?.node;
@@ -149,6 +151,8 @@ function collect(
 
     if (tagged.name === "reference.call" || tagged.name === "reference.method") {
       const viaMember = tagged.name === "reference.method";
+      const site = viaMember ? channelSite(named, tagged.node, def.id) : undefined;
+      if (site) sites.push(site);
       const receiver = viaMember ? types.receiverOf(named) : undefined;
       pendingRefs.push({
         name: named.text,
@@ -192,7 +196,11 @@ function collect(
     .sort((a, b) => a.byte - b.byte)
     .map((ref) => withThisResolved({ ...ref, fromSymbol: enclosingIndex(kept, ref.byte) }, kept));
 
-  return { symbols: kept, references, imports };
+  const channels = sites
+    .sort((a, b) => a.byte - b.byte)
+    .map((site) => ({ ...site, fromSymbol: enclosingIndex(kept, site.byte) }));
+
+  return { symbols: kept, references, imports, ...(channels.length > 0 ? { channels } : {}) };
 }
 
 /**

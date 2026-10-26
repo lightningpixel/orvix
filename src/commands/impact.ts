@@ -36,7 +36,11 @@ export async function runImpact(
 
   for (const layer of impact.layers) {
     lines.push(`depth ${layer.depth}`);
-    lines.push(renderList(layer.symbols, session.symbols, session.graph));
+    for (const symbol of layer.symbols) {
+      const channel = impact.via[symbol.id];
+      const line = renderList([symbol], session.symbols, session.graph);
+      lines.push(channel ? `${line}  ⇢ via "${channel}"` : line);
+    }
   }
   if (impact.fileScope.length > 0) {
     lines.push(`called at file scope from`, ...impact.fileScope.map((file) => `  ${file}`));

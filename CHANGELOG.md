@@ -67,6 +67,16 @@ below into the release notes.
   26.5%), whose methods are mostly defined out of line. On gson it adds 1 908 edges and removes
   65, and every removed edge checked was wrong: `delegate.read()` on a field declared
   `TypeAdapter` had been linked to a same-named method in the same file.
+- Calls dispatched through a channel name are linked, in TypeScript and JavaScript: a dispatch
+  (`emit`, `send`, `invoke`, `publish`, …) reaches every handler registered on the same literal
+  channel (`on`, `once`, `handle`, `subscribe`, …), so `who-calls` and `impact` can cross an
+  IPC or event boundary. These links are weaker evidence than a call and are kept apart, in
+  `graph.dispatch`, and always shown with their channel: `⇢ via "config:get"`. Channel names too
+  common to mean one thing (`data`, `error`, `close`, `click`, …) are ignored, a handler must
+  resolve to exactly one named function, and a channel is matched only within one package — a
+  monorepo's examples reuse channel names, as socket.io's do. On socket.io itself this draws no
+  link: its handlers are inline or destructured, which a syntactic match cannot follow, and that
+  is the limit to expect.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are
