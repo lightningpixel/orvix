@@ -39,6 +39,11 @@ below into the release notes.
   already had. Files are compared by content hash, and a ranged read neither uses nor feeds the
   memory. A `PreCompact` hook, `orvix-compact`, clears it, because after compaction the model no
   longer holds what it read. Off with `"rememberReads": false` in `.orvix/config.json`.
+- `npm run session-replay -- <transcript.jsonl>` measures savings over a whole recorded session
+  rather than per tool result. Each saving is charged once per API call that followed it, up to
+  the next compaction, because that is how often the context carried it — and the total is set
+  against the input the API actually reported. It runs in a scratch copy of `.orvix/`, so a
+  replay never disturbs a live session's memory in the same project.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are

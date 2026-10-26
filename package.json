@@ -47,6 +47,7 @@
     "bench": "node scripts/bench.mjs",
     "scale": "node scripts/scale.mjs",
     "benchmark": "node benchmarks/run.mjs --mode synthetic",
+    "session-replay": "node scripts/session-replay.mjs",
     "build": "npm run grammars && tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
