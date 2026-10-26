@@ -55,6 +55,16 @@ describe("instructionBlock", () => {
     }
   });
 
+  test("names every indexed language, so none is sent back to grep", () => {
+    // The block once stopped at Rust while Java, C#, C++ and C were indexed,
+    // telling agents to read those files directly.
+    for (const language of ["TypeScript", "Python", "Go", "Rust", "Java", "C#", "C++"]) {
+      expect(block).toContain(language);
+    }
+    // Plain C, as a word of its own rather than the start of C# or C++.
+    expect(block).toMatch(/\bC(?![#+\w])/);
+  });
+
   test("says when not to use orvix", () => {
     // Without this an agent will run `orvix show` on a JSON file, get nothing,
     // and conclude the tool is broken.

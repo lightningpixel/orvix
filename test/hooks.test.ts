@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { buildIndex } from "../src/core/indexer.js";
+import { supportedExtensions } from "../src/core/languages.js";
 import { readDirty } from "../src/core/state.js";
 import { loadSymbols } from "../src/core/store.js";
 import { makeProject } from "./helpers/tmpProject.js";
@@ -59,6 +60,25 @@ describe("orvix-dirty", () => {
     });
 
     expect(await readDirty(root)).toEqual(["src/a.ts"]);
+  });
+
+  test("marks a file in every language orvix indexes", async () => {
+    // The hook carries its own extension list, since it may import nothing
+    // but node:*. It fell behind once: Java, C#, C++ and C edits went
+    // unmarked and queries answered from the stale index.
+    const root = await project({ "src/a.ts": `export function a() {}
+` });
+    const expected = supportedExtensions().map((ext) => `src/f${ext}`);
+
+    for (const path of expected) {
+      await runHook("orvix-dirty.mjs", {
+        cwd: root,
+        tool_name: "Write",
+        tool_input: { file_path: join(root, path) },
+      });
+    }
+
+    expect(await readDirty(root)).toEqual(expected);
   });
 
   test("ignores a file in a language orvix does not index", async () => {
