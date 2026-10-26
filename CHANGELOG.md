@@ -44,6 +44,12 @@ below into the release notes.
   the next compaction, because that is how often the context carried it — and the total is set
   against the input the API actually reported. It runs in a scratch copy of `.orvix/`, so a
   replay never disturbs a live session's memory in the same project.
+- `orvix mcp [path]` serves the index over the Model Context Protocol on stdio, for agents that
+  have no hooks. Six tools — `map`, `show`, `find`, `who_calls`, `calls`, `impact` — each the
+  matching command unchanged, so an answer over MCP is the answer on the command line. A failed
+  lookup comes back as a tool error carrying its explanation, so the model sees "try find"
+  rather than the client seeing a protocol failure. Written against the protocol directly; no
+  new dependency.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are

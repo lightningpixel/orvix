@@ -55,6 +55,12 @@ describe("orvix impact", () => {
     expect(output).not.toContain("test/other.test.ts");
   });
 
+  test("counts in the singular when one symbol reaches it", async () => {
+    const { output } = await runImpact(await indexed(), "login");
+
+    expect(output.split("\n")[0]).toBe("1 symbol reaches login");
+  });
+
   test("stops at --depth", async () => {
     const { output } = await runImpact(await indexed(), "validate", { depth: 1 });
 
