@@ -14,6 +14,7 @@ describe("cli", () => {
 
     expect(names).toEqual([
       "calls",
+      "diff",
       "find",
       "gain",
       "impact",

@@ -50,6 +50,12 @@ below into the release notes.
   lookup comes back as a tool error carrying its explanation, so the model sees "try find"
   rather than the client seeing a protocol failure. Written against the protocol directly; no
   new dependency.
+- `orvix diff [ref]` lists what changed since a git ref symbol by symbol — added, removed, new
+  signature, body only — with the callers of every changed signature and the files still naming
+  every removed symbol. Tracked changes, deletions and untracked files are covered; the index's
+  own ignore rules apply. Both versions go through the same extraction as indexing, so a symbol
+  is matched across them by id. On this repository, the diff between two branches that `git
+  diff` prints as 2 900 changed lines comes to about 12 kB.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are
