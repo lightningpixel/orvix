@@ -32,7 +32,7 @@ export async function runImpact(
   }
 
   const dependants = impact.layers.reduce((total, layer) => total + layer.symbols.length, 0);
-  const lines = [`${dependants} symbols reach ${name}`];
+  const lines = [`${dependants} ${dependants === 1 ? "symbol reaches" : "symbols reach"} ${name}`];
 
   for (const layer of impact.layers) {
     lines.push(`depth ${layer.depth}`);

@@ -6,6 +6,7 @@ import { runImpact } from "./commands/impact.js";
 import { runInit } from "./commands/init.js";
 import { askForAgents, isInteractive } from "./commands/prompt.js";
 import { runMap } from "./commands/map.js";
+import { serveStdio } from "./mcp/stdio.js";
 import {
   runCalls,
   runFind,
@@ -122,6 +123,14 @@ export function buildCli(): Command {
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((id, options) => runImpact(options.path, id, options)));
+
+  program
+    .command("mcp")
+    .description("serve the index over the Model Context Protocol, on stdio")
+    .argument("[path]", "project root", ".")
+    // Not wrapped in report(): this runs until stdin closes, and stdout
+    // belongs to the protocol.
+    .action((path: string) => serveStdio(path));
 
   return program;
 }
