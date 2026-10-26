@@ -56,6 +56,17 @@ below into the release notes.
   own ignore rules apply. Both versions go through the same extraction as indexing, so a symbol
   is matched across them by id. On this repository, the diff between two branches that `git
   diff` prints as 2 900 changed lines comes to about 12 kB.
+- Calls through a receiver are resolved by its declared type, where the source states one: a
+  typed parameter, local or field (`r: Repo`, `Repo r`), `new Repo()` and `var r = new Repo()`,
+  `this` and `self`, and `this.field`. A declared type is evidence in the way an import is, so
+  this keeps the rule that resolution never guesses; nothing is inferred beyond the declaration,
+  and a type with no such method — an inherited one — falls back to the old rules. TypeScript,
+  JavaScript, Java, C#, Python and C++ (methods defined in the class body). Measured on the same
+  projects as 0.2.0: gson resolves 35.6% of call sites (from 24.3%) with 22.0% ambiguous (from
+  33.3%); Newtonsoft.Json 32.1% (from 27.5%) with 54.2% ambiguous (from 58.5%); fmt 27.0% (from
+  26.5%), whose methods are mostly defined out of line. On gson it adds 1 908 edges and removes
+  65, and every removed edge checked was wrong: `delegate.read()` on a field declared
+  `TypeAdapter` had been linked to a same-named method in the same file.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are

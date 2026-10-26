@@ -11,6 +11,7 @@ import type {
 import { queryIdOf, type LanguageDef } from "./languages.js";
 import { loadLanguage, parse } from "./parser.js";
 import { queriesDir } from "./paths.js";
+import { ReceiverTypes, THIS } from "./receivers.js";
 
 /** Kinds that other definitions can be nested inside. */
 const CONTAINER_KINDS = new Set<SymbolKind>(["class", "interface", "enum"]);
@@ -132,6 +133,7 @@ function collect(
   const symbols: RawSymbol[] = [];
   const pendingRefs: Array<Omit<RawReference, "fromSymbol">> = [];
   const imports: RawImport[] = [];
+  const types = new ReceiverTypes(tree.rootNode, def.id);
 
   for (const match of query.matches(tree.rootNode)) {
     const named = match.captures.find((c) => c.name === "name")?.node;
@@ -146,11 +148,14 @@ function collect(
     if (!named) continue;
 
     if (tagged.name === "reference.call" || tagged.name === "reference.method") {
+      const viaMember = tagged.name === "reference.method";
+      const receiver = viaMember ? types.receiverOf(named) : undefined;
       pendingRefs.push({
         name: named.text,
         line: named.startPosition.row + 1,
         byte: named.startIndex,
-        viaMember: tagged.name === "reference.method",
+        viaMember,
+        ...(receiver ? { receiver } : {}),
       });
       continue;
     }
@@ -185,9 +190,22 @@ function collect(
 
   const references: RawReference[] = pendingRefs
     .sort((a, b) => a.byte - b.byte)
-    .map((ref) => ({ ...ref, fromSymbol: enclosingIndex(kept, ref.byte) }));
+    .map((ref) => withThisResolved({ ...ref, fromSymbol: enclosingIndex(kept, ref.byte) }, kept));
 
   return { symbols: kept, references, imports };
+}
+
+/**
+ * Turns a `this` receiver into the class it is written in. Outside any class —
+ * a C++ method defined out of line, say — there is no container to name, and
+ * the receiver is dropped rather than guessed.
+ */
+function withThisResolved(ref: RawReference, symbols: RawSymbol[]): RawReference {
+  if (ref.receiver !== THIS) return ref;
+  const { receiver: _, ...rest } = ref;
+  const enclosing = ref.fromSymbol === null ? undefined : symbols[ref.fromSymbol];
+  const container = enclosing && CONTAINER_KINDS.has(enclosing.kind) ? enclosing.name : enclosing?.container;
+  return container ? { ...rest, receiver: container } : rest;
 }
 
 /** True when the declaration sits inside a function body rather than at file or class scope. */
