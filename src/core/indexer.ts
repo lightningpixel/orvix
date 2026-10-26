@@ -15,6 +15,7 @@ import {
   supportedExtensions,
   type LanguageDef,
 } from "./languages.js";
+import { packageResolver } from "./packages.js";
 import { projectIndex } from "./project.js";
 import { rankSymbols } from "./rank.js";
 import { buildCallGraph, type CallGraph } from "./resolve.js";
@@ -134,7 +135,7 @@ export async function buildIndex(
   const ranks = rankSymbols(next, graph);
 
   await saveIndex(root, next);
-  await saveProjection(root, projectIndex(next, graph, ranks));
+  await saveProjection(root, projectIndex(next, graph, ranks, packageResolver(root)));
 
   return { index: next, stats, skippedFiles, graph, ranks };
 }
@@ -177,6 +178,7 @@ export async function buildFileEntry(
     }),
     references: facts.references,
     imports: facts.imports,
+    ...(facts.channels && facts.channels.length > 0 ? { channels: facts.channels } : {}),
   };
 }
 

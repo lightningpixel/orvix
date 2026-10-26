@@ -139,6 +139,7 @@ const sampleProjection = {
     refsByName: { helper: ["src/a.ts"] },
     exportSig: { "src/a.ts": "deadbeef" },
     ambiguous: [],
+    dispatch: {},
     unresolvedByFile: {},
     unresolved: 0,
   },

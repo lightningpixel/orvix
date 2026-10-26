@@ -49,11 +49,25 @@ export interface RawImport {
   line: number;
 }
 
+/** A call made through a channel name; see src/core/channels.ts. */
+export interface RawChannel {
+  role: "listen" | "dispatch";
+  channel: string;
+  /** The handler's name, for a registration. */
+  handler?: string;
+  line: number;
+  byte: number;
+  /** Index into the file's symbols, or null at file scope. */
+  fromSymbol: number | null;
+}
+
 /** Everything Orvix reads out of a single file. */
 export interface FileFacts {
   symbols: RawSymbol[];
   references: RawReference[];
   imports: RawImport[];
+  /** Absent for languages that have none, which keeps their facts as they were. */
+  channels?: RawChannel[];
 }
 
 /** A symbol once it belongs to a project-wide index. */
@@ -71,6 +85,7 @@ export interface FileEntry {
   symbols: IndexedSymbol[];
   references: RawReference[];
   imports: RawImport[];
+  channels?: RawChannel[];
 }
 
 export interface OrvixIndex {
@@ -133,9 +148,19 @@ export interface PersistedGraph {
   /** File -> hash of its exported surface, insensitive to body-only edits. */
   exportSig: Record<string, string>;
   ambiguous: AmbiguousCallRecord[];
+  /**
+   * Handler id -> the symbols that dispatch to it by channel name. Kept apart
+   * from `callers`: a matching string is weaker evidence than a call.
+   */
+  dispatch: Record<string, DispatchRecord[]>;
   /** Unresolved call sites per file, so a partial rebuild can replace its own. */
   unresolvedByFile: Record<string, number>;
   unresolved: number;
+}
+
+export interface DispatchRecord {
+  from: string;
+  channel: string;
 }
 
 /** A call site that matched several definitions, kept rather than guessed at. */
