@@ -77,6 +77,13 @@ below into the release notes.
   monorepo's examples reuse channel names, as socket.io's do. On socket.io itself this draws no
   link: its handlers are inline or destructured, which a syntactic match cannot follow, and that
   is the limit to expect.
+- `orvix replace <id> [--file f] [--write]`, experimental, swaps one symbol's source for new text
+  read from a file or stdin — the counterpart of `show`, without handing an edit tool the old
+  text back. It is the only command that writes, so nothing is written without `--write`; the
+  symbol is located in the file as it is on disk, never at the offsets the index recorded; a
+  replacement that leaves the file unable to parse is refused; and after writing it reports the
+  callers a new signature leaves behind, as the edit hook does. Not in the agent instruction
+  block until it has been used on real sessions.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are
