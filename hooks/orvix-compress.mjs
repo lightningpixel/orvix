@@ -18,7 +18,15 @@
  * that is not indexed, a rendering that is not clearly smaller — exits 0 with
  * no output, and the original result stands.
  */
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 
 /** Matches src/render/tokens.ts. Both sides of a saving use the same measure. */
@@ -29,6 +37,12 @@ const MIN_LINES = 200;
 
 /** A rendering must be at least this much smaller, or it is not worth the swap. */
 const MAX_RATIO = 0.5;
+
+/**
+ * A re-read is answered with only its changed lines when they are at most this
+ * share of the file. Past it, the whole text is easier to follow than a patch.
+ */
+const MAX_DELTA_SHARE = 0.3;
 
 /** Commands whose output may be search hits. Loose on purpose — see `compressHits`. */
 const SEARCH_COMMAND = /\b(?:grep|egrep|fgrep|rg|ag|ack)\b/;
@@ -53,13 +67,20 @@ function main() {
   const original = extractText(input.tool_response);
   if (original === undefined || original.length === 0) return;
 
-  const replacement = choose(input, root, table, original, config);
-  if (!replacement) return;
+  // A choice may carry what to remember once it is known whether the
+  // replacement was used, because the ratio check below can still refuse it.
+  const chosen = choose(input, root, table, original, config);
+  const { text: replacement, used, unused } =
+    typeof chosen === "string" ? { text: chosen } : (chosen ?? {});
 
   // Refuse a swap that does not clearly pay. A rendering that is nearly the
   // size of what it replaces has taken on the risk of losing something for
   // almost none of the benefit.
-  if (replacement.length > original.length * MAX_RATIO) return;
+  if (!replacement || replacement.length > original.length * MAX_RATIO) {
+    unused?.();
+    return;
+  }
+  used?.();
 
   record(root, input, original, replacement);
 
@@ -83,9 +104,7 @@ function main() {
 
 /** Routes a tool result to whichever compression suits it, if any. */
 function choose(input, root, table, original, config) {
-  if (input.tool_name === "Read") {
-    return config.compressRead ? compressRead(input, root, table, original) : undefined;
-  }
+  if (input.tool_name === "Read") return compressRead(input, root, table, original, config);
 
   if (!config.compressSearch) return undefined;
   if (input.tool_name === "Grep") return compressHits(root, table, original);
@@ -114,13 +133,14 @@ function choose(input, root, table, original, config) {
  * not require understanding settings.json.
  */
 function loadConfig(root) {
-  const defaults = { compressRead: true, compressSearch: true };
+  const defaults = { compressRead: true, compressSearch: true, rememberReads: true };
 
   try {
     const raw = JSON.parse(readFileSync(join(root, ".orvix", "config.json"), "utf8"));
     return {
       compressRead: raw.compressRead !== false,
       compressSearch: raw.compressSearch !== false,
+      rememberReads: raw.rememberReads !== false,
     };
   } catch {
     return defaults;
@@ -208,16 +228,32 @@ function withText(response, text) {
  * the real thing — asking twice is the clearest signal that the map was not
  * what was wanted.
  */
-function compressRead(input, root, table, original) {
+function compressRead(input, root, table, original, config) {
   const tool = input.tool_input ?? {};
 
-  // A ranged read is deliberate. Never second-guess it.
+  // A ranged read is deliberate. Never second-guess it, and never count it as
+  // having seen the file.
   if (tool.offset !== undefined || tool.limit !== undefined) return undefined;
   if (typeof tool.file_path !== "string") return undefined;
 
   const path = toRelative(root, tool.file_path);
   if (!path) return undefined;
 
+  const delivered = config.rememberReads
+    ? () => rememberDelivery(root, input, path, original)
+    : undefined;
+
+  if (config.rememberReads) {
+    const recalled = recall(root, input, path, original);
+    if (recalled) return { ...recalled, unused: delivered };
+  }
+
+  const map = config.compressRead ? mapOf(input, root, table, path, original) : undefined;
+  return map ? { text: map, unused: delivered } : { unused: delivered };
+}
+
+/** A whole file's symbol map, or undefined when it should be read as text. */
+function mapOf(input, root, table, path, original) {
   const ids = table.byFile?.[path];
   if (!ids || ids.length === 0) return undefined;
 
@@ -354,6 +390,7 @@ function append(root, sessionId, line) {
 
     // A new session replaces the file rather than adding to it.
     if (readLog(root, sessionId) === "" && !belongsToSession(root, sessionId)) {
+      rmSync(memoryDir(root), { recursive: true, force: true });
       writeFileSync(path, `${sessionId}\n${line}`, "utf8");
       return;
     }
@@ -386,6 +423,135 @@ function firstTime(root, input) {
   if (readLog(root, input.session_id).includes("nudged\n")) return false;
   append(root, input.session_id, "nudged\n");
   return true;
+}
+
+/**
+ * Answers a re-read from what this session has already been sent.
+ *
+ * Only a full delivery counts as having seen a file: a map, a note or a patch
+ * is not the text, so the read after one of those is always sent in full. That
+ * is the same escape hatch the map has — asking again gets the real thing.
+ *
+ * Reads are compared by content hash rather than by mtime, so a file touched
+ * but not changed is still recognised, and one rewritten within the same
+ * second is not mistaken for unchanged.
+ */
+function recall(root, input, path, original) {
+  const last = lastEvent(root, input.session_id, path);
+  if (!last || last.kind !== "raw") return undefined;
+
+  const hash = digest(original);
+
+  if (last.hash === hash) {
+    return {
+      text:
+        `${path} is unchanged since you read it earlier in this session ` +
+        `(${original.split("\n").length} lines); its full text is already in your context. ` +
+        `Read it again to have it re-sent.`,
+      used: () => append(root, input.session_id, `note\t${path}\t${hash}\n`),
+    };
+  }
+
+  const previous = storedText(root, last.hash);
+  if (previous === undefined) return undefined;
+
+  const patch = changedLines(previous, original);
+  if (!patch) return undefined;
+
+  return {
+    text: renderPatch(path, patch),
+    used: () => append(root, input.session_id, `delta\t${path}\t${hash}\n`),
+  };
+}
+
+/**
+ * The one region that differs between two versions, found by trimming the
+ * lines they share at either end. A change too large for one small region is
+ * sent whole instead.
+ */
+function changedLines(before, after) {
+  const old = before.split("\n");
+  const now = after.split("\n");
+
+  let head = 0;
+  while (head < old.length && head < now.length && old[head] === now[head]) head += 1;
+
+  let tail = 0;
+  while (
+    tail < old.length - head &&
+    tail < now.length - head &&
+    old[old.length - 1 - tail] === now[now.length - 1 - tail]
+  ) {
+    tail += 1;
+  }
+
+  const added = now.slice(head, now.length - tail);
+  const removed = old.length - tail - head;
+  if (added.length > now.length * MAX_DELTA_SHARE || removed > old.length * MAX_DELTA_SHARE) {
+    return undefined;
+  }
+
+  return { start: head + 1, added, removed, total: now.length };
+}
+
+function renderPatch(path, { start, added, removed, total }) {
+  const was = removed === 0 ? "nothing" : `lines ${start}-${start + removed - 1}`;
+  const rest = `everything else is as you last saw it (now ${total} lines). Read it again for the full text.`;
+
+  if (added.length === 0) {
+    return `${path} changed since you read it earlier in this session: ${was} of that version were removed, and ${rest}`;
+  }
+
+  const end = start + added.length - 1;
+  const body = added.map((line, at) => `${String(start + at).padStart(6)}\t${line}`).join("\n");
+  return (
+    `${path} changed since you read it earlier in this session. Lines ${start}-${end} now read ` +
+    `as below, replacing ${was} of the version you saw; ${rest}\n${body}`
+  );
+}
+
+/** Notes a full delivery, keeping the text so a later read can be diffed against it. */
+function rememberDelivery(root, input, path, text) {
+  const hash = digest(text);
+  // Logged first: the first line of a new session clears the stored texts,
+  // and would take this one with them.
+  append(root, input.session_id, `raw\t${path}\t${hash}\n`);
+  try {
+    const dir = memoryDir(root);
+    mkdirSync(dir, { recursive: true });
+    const stored = join(dir, `${hash}.txt`);
+    if (!existsSync(stored)) writeFileSync(stored, text, "utf8");
+  } catch {
+    // Without the copy, a changed file is simply sent whole next time.
+  }
+}
+
+/** The most recent full delivery, note or patch of this file in this session. */
+function lastEvent(root, sessionId, path) {
+  const lines = readLog(root, sessionId).split("\n");
+  for (let at = lines.length - 1; at >= 0; at -= 1) {
+    const [kind, file, hash] = lines[at].split("\t");
+    if (file === path && hash && (kind === "raw" || kind === "note" || kind === "delta")) {
+      return { kind, hash };
+    }
+  }
+  return undefined;
+}
+
+function storedText(root, hash) {
+  try {
+    return readFileSync(join(memoryDir(root), `${hash}.txt`), "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function memoryDir(root) {
+  return join(root, ".orvix", "session");
+}
+
+function digest(text) {
+  return createHash("sha1").update(text).digest("hex").slice(0, 16);
 }
 
 /** Real measured deltas, so `orvix gain` reports observations not estimates. */

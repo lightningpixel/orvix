@@ -99,10 +99,18 @@ function listed(
   return rest > 0 ? `${shown}\n… ${rest} more: orvix who-calls ${id.slice(0, 4)}` : shown;
 }
 
+/**
+ * The index key for a path, or undefined outside the project.
+ *
+ * Resolved before the containment check, relative paths included: the path is
+ * marked dirty and then read, so `src/../../x.ts` must not get as far as that.
+ */
 function toProjectPath(root: string, file: string): string | undefined {
-  const rel = isAbsolute(file) ? relative(root, file) : file;
-  if (rel.length === 0 || rel.startsWith("..")) return undefined;
-  return rel.split(sep).join("/").replace(/\\/g, "/");
+  const rel = relative(root, resolve(root, file));
+  if (rel.length === 0 || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    return undefined;
+  }
+  return rel.split(sep).join("/");
 }
 
 function plural(count: number, word: string): string {

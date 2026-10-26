@@ -74,6 +74,14 @@ export function orvixHooks(): Record<string, HookMatcher[]> {
         hooks: [{ type: "command", command: SCRIPT("orvix-focus.mjs"), timeout: 10 }],
       },
     ],
+    PreCompact: [
+      {
+        // After compaction the model no longer holds what it read, so the
+        // compressor must stop saying it does.
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-compact.mjs"), timeout: 10 }],
+      },
+    ],
     Stop: [
       {
         [HOOK_MARKER]: true,

@@ -32,6 +32,13 @@ below into the release notes.
   arrives whether or not it was asked for. Ids are what make it cheap: a body-only edit keeps every
   id and signature, so the common case prints nothing. It reindexes the one file synchronously,
   about 220 ms on this repository. Off with `"editImpact": false` in `.orvix/config.json`.
+- The compression hook now remembers, per session, which files it has delivered in full. Reading
+  one again unchanged returns a one-line note that its text is already in context; reading it
+  after a small edit returns only the changed lines, numbered as `Read` numbers them. Reading
+  again after a note or a patch sends the whole file — the same escape hatch the symbol map
+  already had. Files are compared by content hash, and a ranged read neither uses nor feeds the
+  memory. A `PreCompact` hook, `orvix-compact`, clears it, because after compaction the model no
+  longer holds what it read. Off with `"rememberReads": false` in `.orvix/config.json`.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are

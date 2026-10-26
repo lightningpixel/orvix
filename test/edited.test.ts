@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { orvixHooks } from "../src/agents/claudeHooks.js";
 import { supportedExtensions } from "../src/core/languages.js";
 import { runEdited } from "../src/commands/edited.js";
 import { runIndex } from "../src/commands/indexCommand.js";
 import { runWhoCalls } from "../src/commands/lookupCommands.js";
+import { loadSymbols } from "../src/core/store.js";
 import { makeProject } from "./helpers/tmpProject.js";
 
 const HOOK = resolve("hooks", "orvix-impact.mjs");
@@ -109,6 +110,24 @@ describe("orvix-query edited", () => {
     await runEdited(root, "src/login.ts");
 
     expect((await runWhoCalls(root, "validate")).output).toBe("none");
+  });
+
+  test("refuses a relative path that climbs out of the project", async () => {
+    // Joined to the root without normalising, "src/../../x.ts" would be marked
+    // dirty and the reindex would read a file outside the project.
+    const root = await indexed();
+    const outside = join(root, "..", `${basename(root)}-outside.ts`);
+    await writeFile(outside, "export function secret() {}\n", "utf8");
+
+    try {
+      const { output } = await runEdited(root, `src/../../${basename(outside)}`);
+
+      expect(output).toBe("");
+      const files = Object.keys((await loadSymbols(root)).byFile);
+      expect(files.filter((file) => file.includes(".."))).toEqual([]);
+    } finally {
+      await rm(outside, { force: true });
+    }
   });
 
   test("accepts an absolute path", async () => {
