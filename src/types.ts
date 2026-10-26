@@ -34,6 +34,11 @@ export interface RawReference {
   fromSymbol: number | null;
   /** Called through a receiver (`obj.name()`), so only a method can match. */
   viaMember: boolean;
+  /**
+   * The class the receiver is declared as, when the source says: `r: Repo`,
+   * `new Repo()`, `this` inside Repo. Absent when it does not.
+   */
+  receiver?: string;
 }
 
 export interface RawImport {

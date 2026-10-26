@@ -104,6 +104,7 @@ export function buildCallGraph(
   };
 
   const exportedByName = groupExportedByName(index);
+  const methodsByName = groupMethodsByName(index);
 
   for (const [file, entry] of Object.entries(index.files)) {
     if (options.only && !options.only.has(file)) continue;
@@ -134,7 +135,30 @@ export function buildCallGraph(
         .get(reference.name)
         ?.filter((symbol) => familyForPath(symbol.file) === family);
 
+      // A declared receiver type comes first: it names the class outright.
+      // When that class has no such method — an inherited one, a type from a
+      // library — the call is resolved exactly as if no type were known.
+      const typed = reference.receiver
+        ? methodsByName
+            .get(reference.name)
+            ?.filter(
+              (symbol) =>
+                symbol.container === reference.receiver &&
+                familyForPath(symbol.file) === family,
+            )
+        : undefined;
+
+      // Several classes can share the declared name — nested builders above
+      // all — so the usual order applies within it: this file, then imports.
+      const typedInFile = typed?.filter((symbol) => symbol.file === file);
+      const typedImported = typed?.filter((symbol) =>
+        imported.get(reference.name)?.includes(symbol),
+      );
+
       const candidates =
+        (typedInFile && typedInFile.length > 0 ? typedInFile : undefined) ??
+        (typedImported && typedImported.length > 0 ? typedImported : undefined) ??
+        (typed && typed.length > 0 ? typed : undefined) ??
         reachable(local.get(reference.name)) ??
         reachable(imported.get(reference.name)) ??
         reachable(projectWide);
@@ -191,6 +215,14 @@ function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
   }
 
   return grouped;
+}
+
+function groupMethodsByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
+  return groupByName(
+    Object.values(index.files).flatMap((entry) =>
+      entry.symbols.filter((symbol) => symbol.kind === "method"),
+    ),
+  );
 }
 
 function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
