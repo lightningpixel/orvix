@@ -27,8 +27,8 @@ Queries answer from a prebuilt index and never reparse on their own, so run
 \`orvix index\` after you change files. (Under Claude Code this is automatic: a hook marks
 edited files and the next query picks them up.)
 
-Do not use orvix for files outside TypeScript, TSX, JavaScript, Python, Go and Rust —
-read those directly. Do not use it for anything that is not a symbol: string literals,
+Do not use orvix for files outside TypeScript, TSX, JavaScript, Python, Go, Rust, Java,
+C#, C++ and C — read those directly. Do not use it for anything that is not a symbol: string literals,
 configuration keys, comments, TODOs. Use \`grep\` for those.
 ${BLOCK_END}
 `;
