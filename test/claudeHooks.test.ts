@@ -45,7 +45,7 @@ describe("upsertHooks", () => {
   test("adds the hooks to an empty settings file", () => {
     const merged = upsertHooks({});
 
-    expect(Object.keys(merged.hooks!)).toEqual(["PostToolUse", "Stop"]);
+    expect(Object.keys(merged.hooks!)).toEqual(["PostToolUse", "UserPromptSubmit", "Stop"]);
   });
 
   test("is idempotent", () => {

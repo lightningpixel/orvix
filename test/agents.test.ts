@@ -65,6 +65,10 @@ describe("instructionBlock", () => {
     expect(block).toMatch(/\bC(?![#+\w])/);
   });
 
+  test("teaches the focused map", () => {
+    expect(block).toContain("orvix map --focus");
+  });
+
   test("says when not to use orvix", () => {
     // Without this an agent will run `orvix show` on a JSON file, get nothing,
     // and conclude the tool is broken.
