@@ -22,6 +22,7 @@ describe("cli", () => {
       "init",
       "map",
       "mcp",
+      "replace",
       "show",
       "who-calls",
     ]);
