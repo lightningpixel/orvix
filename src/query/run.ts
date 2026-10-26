@@ -1,3 +1,4 @@
+import { runEdited } from "../commands/edited.js";
 import { runImpact } from "../commands/impact.js";
 import { runMap } from "../commands/map.js";
 import {
@@ -25,6 +26,7 @@ commands:
   who-calls <id|name>     symbols that call this one
   calls <id|name>         symbols this one calls
   impact <id|name>        everything that reaches this one, and the tests among it
+  edited <file>           reindex a just-edited file and name the callers it broke
 
 options:
   -p, --path <path>       project root (default: .)
@@ -78,6 +80,10 @@ export async function run(argv: string[]): Promise<CommandResult> {
   const { command, argument, path, budget, focus, depth, json } = parsed;
 
   if (command === "map") return runMap(path, { budget, focus, json });
+  if (command === "edited") {
+    if (!argument) return { output: "edited needs a file path", ok: false };
+    return runEdited(path, argument);
+  }
 
   // The command is checked before its argument on purpose: `orvix-query
   // nonsense` should say the command is unknown, not ask for a symbol id it

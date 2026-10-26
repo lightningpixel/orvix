@@ -25,6 +25,13 @@ below into the release notes.
 - `orvix impact <id>` lists everything that reaches a symbol, grouped by distance, and the test
   files among it — the tests worth running after changing it. `--depth` stops the walk early. It
   follows only edges the graph drew, so it is a floor on the blast radius, never an inflated one.
+- An `orvix-impact` hook runs after every `Edit`, `Write` and `MultiEdit`. When the edit
+  changed a signature, or removed or renamed a symbol, it tells the model which callers that leaves
+  behind — before and after signatures, the callers by id, file-scope callers too. Calling
+  `who-calls` before a change used to be a recommendation in an instruction file; now the answer
+  arrives whether or not it was asked for. Ids are what make it cheap: a body-only edit keeps every
+  id and signature, so the common case prints nothing. It reindexes the one file synchronously,
+  about 220 ms on this repository. Off with `"editImpact": false` in `.orvix/config.json`.
 - Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
   `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
   file was ever seen to reach anything. The projection version moves to 3, so existing caches are
