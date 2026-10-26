@@ -27,6 +27,14 @@ export interface CallGraph {
   callers: Map<string, Set<string>>;
   /** caller id -> distinct callee ids. */
   callees: Map<string, Set<string>>;
+  /**
+   * callee id -> files that call it from file scope.
+   *
+   * A call inside `test(() => …)` belongs to no symbol, so it never becomes a
+   * caller edge. Without this, a test file would never be seen to reach
+   * anything, which is exactly what `orvix impact` needs to know.
+   */
+  fileCallers: Map<string, Set<string>>;
   ambiguous: AmbiguousCall[];
   /** Call sites naming something the project does not define. */
   unresolved: number;
@@ -89,6 +97,7 @@ export function buildCallGraph(
     edges: [],
     callers: new Map(),
     callees: new Map(),
+    fileCallers: new Map(),
     ambiguous: [],
     unresolved: 0,
     unresolvedByFile: new Map(),
@@ -153,6 +162,8 @@ export function buildCallGraph(
       if (from !== null) {
         addTo(graph.callers, to, from);
         addTo(graph.callees, from, to);
+      } else {
+        addTo(graph.fileCallers, to, file);
       }
     }
   }

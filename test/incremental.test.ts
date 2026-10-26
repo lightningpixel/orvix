@@ -283,6 +283,55 @@ describe("incremental reindex — agreement with a full rebuild", () => {
     expect(incremental.graph).toBe(full.graph);
   });
 
+  // Calls at file scope — every call inside `test(() => …)` — are kept as
+  // file callers, and have to be spliced exactly like symbol edges.
+  const WITH_TEST = {
+    ...BASE,
+    "test/login.test.ts":
+      `import { login } from "../src/login";
+test("logs in", () => {
+  login("a@b.c");
+});
+`,
+  };
+
+  test("after a file-scope call is removed", async () => {
+    const { incremental, full } = await agrees(WITH_TEST, async (root) => {
+      await edit(root, "test/login.test.ts", `test("nothing", () => {});
+`);
+      return ["test/login.test.ts"];
+    });
+
+    expect(JSON.parse(full.graph).fileCallers).toEqual({});
+    expect(incremental.graph).toBe(full.graph);
+  });
+
+  test("after the target of a file-scope call is renamed", async () => {
+    const { incremental, full } = await agrees(WITH_TEST, async (root) => {
+      await edit(
+        root,
+        "src/login.ts",
+        `import { validate } from "./auth";
+export function signIn(email: string) {
+  return validate(email);
+}
+`,
+      );
+      return ["src/login.ts"];
+    });
+
+    expect(incremental.graph).toBe(full.graph);
+  });
+
+  test("after a file making file-scope calls is deleted", async () => {
+    const { incremental, full } = await agrees(WITH_TEST, async (root) => {
+      await rm(join(root, "test/login.test.ts"));
+      return ["test/login.test.ts"];
+    });
+
+    expect(incremental.graph).toBe(full.graph);
+  });
+
   test("after a sequence of unrelated edits", async () => {
     const { incremental, full } = await agrees(BASE, async (root) => {
       await edit(root, "src/auth.ts", `export function validate() {\n  return true;\n}\n`);

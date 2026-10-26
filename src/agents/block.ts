@@ -20,6 +20,7 @@ This project is indexed by orvix. Prefer it over \`grep\` and over reading whole
 - \`orvix find <name>\` — locate a symbol when you don't have its id
 - \`orvix who-calls <id>\` — every caller. Run this before changing a signature.
 - \`orvix calls <id>\` — what a symbol depends on
+- \`orvix impact <id>\` — everything that reaches it, nearest first, and the test files to run
 
 Ids are short and stable across edits: reuse an id you were given earlier rather than
 re-running \`map\`. Names work too — \`orvix show validate\`, \`orvix show Service.validate\`.

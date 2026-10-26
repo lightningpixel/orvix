@@ -9,7 +9,7 @@ import { qualifiedName } from "./symbols.js";
 import type { CallGraph } from "./resolve.js";
 
 /** Bump whenever the projected shape changes; older caches are then discarded. */
-export const PROJECTION_VERSION = 2;
+export const PROJECTION_VERSION = 3;
 
 /**
  * Most files that may reference one name before the name is called "wide".
@@ -90,6 +90,7 @@ export function projectIndex(
       version: PROJECTION_VERSION,
       callers: fromSets(graph.callers),
       callees: fromSets(graph.callees),
+      fileCallers: fromSets(graph.fileCallers),
       refsByName,
       exportSig,
       // Sorted so a partial rebuild, which appends its own findings to the

@@ -117,6 +117,8 @@ export interface PersistedGraph {
   callers: Record<string, string[]>;
   /** Caller id -> callee ids. */
   callees: Record<string, string[]>;
+  /** Callee id -> files calling it from file scope, outside any symbol. */
+  fileCallers: Record<string, string[]>;
   /**
    * Referenced name -> files containing a reference to it, resolved or not.
    * Unresolved names are kept because a name that resolves to nothing today
