@@ -197,9 +197,24 @@ function isLocal(node: Node, languageId: string): boolean {
 
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
     if (scopes.has(ancestor.type)) return true;
+    if (isLocalBlock(ancestor, languageId)) return true;
   }
 
   return false;
+}
+
+const ECMASCRIPT = new Set(["typescript", "tsx", "javascript"]);
+
+/**
+ * A block at file scope — the body of a top-level `try`, `if` or bare `{ }` —
+ * holds block-scoped names that nothing outside it can reach. A namespace's
+ * body is a block in the grammar too, but its members are the namespace's
+ * surface, so that one is kept.
+ */
+function isLocalBlock(node: Node, languageId: string): boolean {
+  if (!ECMASCRIPT.has(languageId) || node.type !== "statement_block") return false;
+  const parent = node.parent?.type;
+  return parent !== "internal_module" && parent !== "module";
 }
 
 /**
