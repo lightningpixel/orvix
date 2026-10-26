@@ -48,6 +48,7 @@ export function emptyGraph(): PersistedGraph {
     version: PROJECTION_VERSION,
     callers: {},
     callees: {},
+    fileCallers: {},
     refsByName: {},
     exportSig: {},
     ambiguous: [],
@@ -85,7 +86,7 @@ export async function loadGraph(root: string): Promise<PersistedGraph> {
   );
   if (!graph) return emptyGraph();
 
-  harden(graph, ["callers", "callees", "refsByName", "exportSig"]);
+  harden(graph, ["callers", "callees", "fileCallers", "refsByName", "exportSig"]);
   return graph;
 }
 

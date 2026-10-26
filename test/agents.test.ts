@@ -50,7 +50,7 @@ describe("instructionBlock", () => {
   });
 
   test("names every command an agent needs", () => {
-    for (const command of ["orvix map", "orvix show", "orvix find", "orvix who-calls", "orvix calls"]) {
+    for (const command of ["orvix map", "orvix show", "orvix find", "orvix who-calls", "orvix calls", "orvix impact"]) {
       expect(block).toContain(command);
     }
   });

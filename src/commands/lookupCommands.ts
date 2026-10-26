@@ -132,7 +132,7 @@ function matchScore(symbol: IndexedSymbol, needle: string): number {
 type Resolved = { symbol: IndexedSymbol } | { failure: CommandResult };
 
 /** Turns a failed lookup into an answer the agent can act on. */
-function resolveOrExplain(session: QuerySession, query: string): Resolved {
+export function resolveOrExplain(session: QuerySession, query: string): Resolved {
   const result = lookupSymbol(session.symbols, query);
 
   if (result.status === "found") return { symbol: result.symbol };

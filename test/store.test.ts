@@ -135,6 +135,7 @@ const sampleProjection = {
     version: PROJECTION_VERSION,
     callers: {},
     callees: {},
+    fileCallers: {},
     refsByName: { helper: ["src/a.ts"] },
     exportSig: { "src/a.ts": "deadbeef" },
     ambiguous: [],
