@@ -4,7 +4,7 @@ import type { OrvixIndex, PersistedGraph, SymbolTable } from "../types.js";
 import { PROJECTION_VERSION, serialise, type Projection } from "./project.js";
 
 /** Bump whenever the stored shape changes; older caches are then discarded. */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 
 export const CACHE_DIR = ".orvix";
 

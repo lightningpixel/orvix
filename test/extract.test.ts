@@ -130,6 +130,38 @@ describe("extractFile — locals are not symbols", () => {
     expect(names(f).sort()).toEqual(["MAX", "f"]);
   });
 
+  test("drops declarations inside a top-level block", async () => {
+    // A const in `try { … }` or `if (…) { … }` at file scope is block-scoped:
+    // nothing outside the block can name it. Found by diffing this repository,
+    // where a hook's `const input` inside a top-level try showed up as a
+    // module constant.
+    const f = await facts(
+      `try {
+  const input = 1;
+} catch {}
+if (ready) {
+  const flag = 2;
+  function helper() {}
+}
+{
+  let scoped = 3;
+}
+export const kept = 4;
+`,
+    );
+
+    expect(names(f)).toEqual(["kept"]);
+  });
+
+  test("keeps the members of a namespace, whose body is also a block", async () => {
+    const f = await facts(`export namespace Shapes {
+  export function area() {}
+}
+`);
+
+    expect(names(f)).toContain("area");
+  });
+
   test("keeps methods, which are nested but not local", async () => {
     const f = await facts(`class A {\n  run() {\n    const x = 1;\n  }\n}\n`);
 

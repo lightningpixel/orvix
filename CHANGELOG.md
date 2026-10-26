@@ -63,6 +63,11 @@ below into the release notes.
 
 ### Fixed
 
+- A declaration inside a block at file scope — the body of a top-level `try`, `if` or bare
+  `{ }` — was indexed as a module symbol, though nothing outside the block can name it. Every
+  hook script's `const input` showed up in the map this way; 15 such symbols on this repository.
+  A namespace's body is a block too, and its members are still indexed. The facts cache version
+  moves to 3, so every file is reparsed once rather than keeping facts extracted by the old rule.
 - Edits to Java, C#, C++ and C files were never marked dirty, so queries answered from the stale
   index until the turn ended. The dirty hook's extension list stopped at Rust, and so did the
   agent instruction block, which told agents to read those files directly.
