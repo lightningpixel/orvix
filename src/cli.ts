@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import pkg from "../package.json" with { type: "json" };
+import { runDiff } from "./commands/diff.js";
 import { runIndex } from "./commands/indexCommand.js";
 import { runGain } from "./commands/gain.js";
 import { runImpact } from "./commands/impact.js";
@@ -123,6 +124,14 @@ export function buildCli(): Command {
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((id, options) => runImpact(options.path, id, options)));
+
+  program
+    .command("diff")
+    .description("list the symbols changed since a git ref, and who depends on the old shape")
+    .argument("[ref]", "git ref to compare the working tree against", "HEAD")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .action(report((ref, options) => runDiff(options.path, { ...options, ref })));
 
   program
     .command("mcp")
