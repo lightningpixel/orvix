@@ -49,6 +49,13 @@ export function orvixHooks(): Record<string, HookMatcher[]> {
         hooks: [{ type: "command", command: SCRIPT("orvix-dirty.mjs"), async: true }],
       },
       {
+        // Synchronous, unlike orvix-dirty beside it: a warning about broken
+        // callers is only useful before the model moves on to the next file.
+        matcher: "Edit|Write|MultiEdit",
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-impact.mjs"), timeout: 10 }],
+      },
+      {
         // Bash is here because half of real searches are `rg` or `grep` run
         // through the shell rather than the native tool, and those were going
         // past uncompressed. Glob is not: it returns bare paths with no line

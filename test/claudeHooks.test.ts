@@ -114,7 +114,7 @@ describe("upsertHooks", () => {
     );
 
     expect(commands).not.toContain("node old-path.mjs");
-    expect(commands).toHaveLength(2);
+    expect(commands).toHaveLength(orvixHooks()["PostToolUse"]!.length);
   });
 
   test("drops an orvix entry on an event it no longer registers", () => {
