@@ -37,6 +37,10 @@ async function repository(): Promise<string> {
   const root = made.root;
 
   await git("git", ["-C", root, "init", "-q"]);
+  // Since git 2.47 a commit starts `maintenance run --auto --detach`, which can still be writing
+  // into .git/objects/pack while afterEach removes the directory: ENOTEMPTY on the Ubuntu runner.
+  await git("git", ["-C", root, "config", "maintenance.auto", "false"]);
+  await git("git", ["-C", root, "config", "gc.auto", "0"]);
   await git("git", ["-C", root, "add", "."]);
   await git("git", ["-C", root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "base"]);
 
