@@ -38,6 +38,33 @@ node benchmarks/run.mjs --mode live --arm both
 Results land in `benchmarks/results/`, and the committed files are what the
 README figures are taken from.
 
+## A whole session (`npm run session-replay`)
+
+The synthetic arm compares one tool result against its replacement. A session pays for a
+result again on every API call that follows it — the whole context is re-sent each time —
+until compaction drops it. A saving made on the third turn of a forty-turn session is worth
+far more than one made on the thirty-ninth.
+
+`scripts/session-replay.mjs` replays a recorded Claude Code transcript through the real
+compression hook, in order, and charges each saving once per later API call up to the next
+compaction. The total is set against the input the transcript says the API really received:
+
+```
+npm run session-replay -- ~/.claude/projects/<project>/<session>.jsonl --root path/to/project
+```
+
+```
+api_calls=41 session_input=1830211
+tool_results=37 compressed=12
+saved_once=18450 saved_cumulative=402377
+share_of_session_input=0.220
+```
+
+(Illustrative output.) Replay a session recorded *without* Orvix's hooks, against an index of
+the code as it was then. The replay runs in a scratch copy of `.orvix/`, so it never disturbs
+the session memory of an agent working in the same project. Savings use the 3.5 characters per
+token estimate; the session input is the API's own count.
+
 ## Reading the output
 
 Both arms print the same shape, one `key=value` record per line:

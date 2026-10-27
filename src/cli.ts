@@ -1,10 +1,14 @@
 import { Command } from "commander";
 import pkg from "../package.json" with { type: "json" };
+import { runDiff } from "./commands/diff.js";
 import { runIndex } from "./commands/indexCommand.js";
 import { runGain } from "./commands/gain.js";
+import { runImpact } from "./commands/impact.js";
 import { runInit } from "./commands/init.js";
 import { askForAgents, isInteractive } from "./commands/prompt.js";
 import { runMap } from "./commands/map.js";
+import { readReplacement, runReplace } from "./commands/replace.js";
+import { serveStdio } from "./mcp/stdio.js";
 import {
   runCalls,
   runFind,
@@ -60,6 +64,10 @@ export function buildCli(): Command {
     .description("print the symbol tree, ranked and fitted to a token budget")
     .argument("[path]", "project root", ".")
     .option("-b, --budget <tokens>", "approximate token budget", "2000")
+    .option(
+      "-f, --focus <targets...>",
+      "centre the map on these ids, names or files instead of global importance",
+    )
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((path, options) => runMap(path, options)));
@@ -107,6 +115,48 @@ export function buildCli(): Command {
     .option("--json", "machine-readable output")
     .option("--no-refresh", "answer from the cache without restatting files")
     .action(report((id, options) => runCalls(options.path, id, options)));
+
+  program
+    .command("impact")
+    .description("list everything that reaches this symbol, nearest first, and the tests among it")
+    .argument("<id>", "symbol id or name")
+    .option("-p, --path <path>", "project root", ".")
+    .option("-d, --depth <n>", "how many levels of callers to follow")
+    .option("--json", "machine-readable output")
+    .option("--no-refresh", "answer from the cache without restatting files")
+    .action(report((id, options) => runImpact(options.path, id, options)));
+
+  program
+    .command("diff")
+    .description("list the symbols changed since a git ref, and who depends on the old shape")
+    .argument("[ref]", "git ref to compare the working tree against", "HEAD")
+    .option("-p, --path <path>", "project root", ".")
+    .option("--json", "machine-readable output")
+    .action(report((ref, options) => runDiff(options.path, { ...options, ref })));
+
+  program
+    .command("replace")
+    .description("replace one symbol's source with new text, read from --file or stdin (experimental)")
+    .argument("<id>", "symbol id or name")
+    .option("-p, --path <path>", "project root", ".")
+    .option("-f, --file <file>", "read the replacement from this file instead of stdin")
+    .option("--write", "apply the change; without it, only describe it")
+    .action(
+      report(async (id, options) =>
+        runReplace(options.path, id, {
+          source: await readReplacement(options.file),
+          write: options.write === true,
+        }),
+      ),
+    );
+
+  program
+    .command("mcp")
+    .description("serve the index over the Model Context Protocol, on stdio")
+    .argument("[path]", "project root", ".")
+    // Not wrapped in report(): this runs until stdin closes, and stdout
+    // belongs to the protocol.
+    .action((path: string) => serveStdio(path));
 
   return program;
 }

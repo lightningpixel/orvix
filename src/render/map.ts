@@ -6,6 +6,11 @@ export interface MapRenderOptions {
   budget: number;
   /** Longest signature shown before it is elided. */
   maxSignature?: number;
+  /**
+   * Closeness to the task, from focusRanks. When given it orders the map
+   * ahead of global importance, which then only breaks ties.
+   */
+  focus?: ReadonlyMap<string, number>;
 }
 
 const DEFAULT_MAX_SIGNATURE = 90;
@@ -30,8 +35,10 @@ export function renderMap(
 
   // Most important first; the id breaks ties so output never depends on the
   // order files happened to be walked in.
+  const focus = options.focus;
   const byImportance = [...symbols].sort(
     (a, b) =>
+      (focus ? (focus.get(b.id) ?? 0) - (focus.get(a.id) ?? 0) : 0) ||
       (table.ranks[b.id] ?? 0) - (table.ranks[a.id] ?? 0) ||
       a.id.localeCompare(b.id),
   );

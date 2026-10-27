@@ -50,9 +50,23 @@ describe("instructionBlock", () => {
   });
 
   test("names every command an agent needs", () => {
-    for (const command of ["orvix map", "orvix show", "orvix find", "orvix who-calls", "orvix calls"]) {
+    for (const command of ["orvix map", "orvix show", "orvix find", "orvix who-calls", "orvix calls", "orvix impact"]) {
       expect(block).toContain(command);
     }
+  });
+
+  test("names every indexed language, so none is sent back to grep", () => {
+    // The block once stopped at Rust while Java, C#, C++ and C were indexed,
+    // telling agents to read those files directly.
+    for (const language of ["TypeScript", "Python", "Go", "Rust", "Java", "C#", "C++"]) {
+      expect(block).toContain(language);
+    }
+    // Plain C, as a word of its own rather than the start of C# or C++.
+    expect(block).toMatch(/\bC(?![#+\w])/);
+  });
+
+  test("teaches the focused map", () => {
+    expect(block).toContain("orvix map --focus");
   });
 
   test("says when not to use orvix", () => {

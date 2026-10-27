@@ -7,18 +7,22 @@ describe("cli", () => {
     expect(buildCli().version()).toBe(pkg.version);
   });
 
-  test("registers the v1 commands", () => {
+  test("registers every command", () => {
     const names = buildCli()
       .commands.map((c) => c.name())
       .sort();
 
     expect(names).toEqual([
       "calls",
+      "diff",
       "find",
       "gain",
+      "impact",
       "index",
       "init",
       "map",
+      "mcp",
+      "replace",
       "show",
       "who-calls",
     ]);

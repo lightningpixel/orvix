@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { buildFileEntry, type Extractor } from "./indexer.js";
 import { languageForPath } from "./languages.js";
+import { packageResolver } from "./packages.js";
 import { WIDE, projectIndex } from "./project.js";
 import { rankSymbols } from "./rank.js";
 import { buildCallGraph, type CallGraph } from "./resolve.js";
@@ -141,7 +142,7 @@ export async function reindex(
     ? rankSymbols(index, toCallGraph(merged))
     : carriedRanks(previousTable, index);
 
-  const projected = projectIndex(index, toCallGraph(merged), ranks);
+  const projected = projectIndex(index, toCallGraph(merged), ranks, packageResolver(root));
 
   await saveIndex(root, index);
   await saveProjection(root, projected);
@@ -243,6 +244,19 @@ function spliceGraph(
     for (const source of sources) if (!live.has(source)) sources.delete(source);
   }
 
+  // File-scope calls are owned by their file rather than by a symbol, so an
+  // affected file's are torn out by name and the dead targets dropped.
+  const fileCallers = new Map<string, Set<string>>();
+  for (const [id, files] of Object.entries(previous.fileCallers)) {
+    if (!live.has(id)) continue;
+    fileCallers.set(id, new Set(files.filter((file) => !purge.has(file))));
+  }
+  for (const [id, files] of partial.fileCallers) {
+    const bucket = fileCallers.get(id) ?? new Set<string>();
+    for (const file of files) bucket.add(file);
+    fileCallers.set(id, bucket);
+  }
+
   for (const [id, sources] of partial.callers) {
     const bucket = callers.get(id) ?? new Set<string>();
     for (const source of sources) bucket.add(source);
@@ -276,9 +290,12 @@ function spliceGraph(
     // agree exactly.
     callers: fromSets(callers),
     callees: fromSets(callees),
+    fileCallers: fromSets(fileCallers),
     refsByName: previous.refsByName,
     exportSig: previous.exportSig,
     ambiguous: [...keptAmbiguous, ...partial.ambiguous],
+    // Rebuilt whole from the facts when this is projected; see dispatch.ts.
+    dispatch: {},
     unresolvedByFile,
     unresolved: Object.values(unresolvedByFile).reduce((a, b) => a + b, 0),
   };
@@ -299,11 +316,14 @@ function toCallGraph(graph: PersistedGraph): CallGraph {
 
   for (const [id, list] of Object.entries(graph.callers)) callers.set(id, new Set(list));
   for (const [id, list] of Object.entries(graph.callees)) callees.set(id, new Set(list));
+  const fileCallers = new Map<string, Set<string>>();
+  for (const [id, list] of Object.entries(graph.fileCallers)) fileCallers.set(id, new Set(list));
 
   return {
     edges: [],
     callers,
     callees,
+    fileCallers,
     ambiguous: graph.ambiguous,
     unresolved: graph.unresolved,
     unresolvedByFile: new Map(Object.entries(graph.unresolvedByFile)),

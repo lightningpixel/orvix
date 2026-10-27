@@ -10,6 +10,96 @@ below into the release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `orvix map --focus <id|name|file>…` centres the map on what a task touches. It is PageRank
+  restarted only at those symbols, over call edges taken in both directions, so a parser's private
+  caller outranks a busy exported surface that has nothing to do with it. The token budget is
+  honoured exactly as before.
+- A `UserPromptSubmit` hook, `orvix-focus`, hands the model that map before its first tool
+  call. Every other hook reacts to a call the model already chose to make; this is the one point
+  where Orvix acts first. Only words that look like code count — camelCase, snake_case,
+  `Service.validate`, a path, anything in backticks — so "run the map again" focuses on nothing,
+  even in a project with symbols called `run` and `map`. Off with `"focusPrompt": false` in
+  `.orvix/config.json`; `"focusBudget"` sets its size (800 tokens by default).
+- `orvix impact <id>` lists everything that reaches a symbol, grouped by distance, and the test
+  files among it — the tests worth running after changing it. `--depth` stops the walk early. It
+  follows only edges the graph drew, so it is a floor on the blast radius, never an inflated one.
+- An `orvix-impact` hook runs after every `Edit`, `Write` and `MultiEdit`. When the edit
+  changed a signature, or removed or renamed a symbol, it tells the model which callers that leaves
+  behind — before and after signatures, the callers by id, file-scope callers too. Calling
+  `who-calls` before a change used to be a recommendation in an instruction file; now the answer
+  arrives whether or not it was asked for. Ids are what make it cheap: a body-only edit keeps every
+  id and signature, so the common case prints nothing. It reindexes the one file synchronously,
+  about 220 ms on this repository. Off with `"editImpact": false` in `.orvix/config.json`.
+- The compression hook now remembers, per session, which files it has delivered in full. Reading
+  one again unchanged returns a one-line note that its text is already in context; reading it
+  after a small edit returns only the changed lines, numbered as `Read` numbers them. Reading
+  again after a note or a patch sends the whole file — the same escape hatch the symbol map
+  already had. Files are compared by content hash, and a ranged read neither uses nor feeds the
+  memory. A `PreCompact` hook, `orvix-compact`, clears it, because after compaction the model no
+  longer holds what it read. Off with `"rememberReads": false` in `.orvix/config.json`.
+- `npm run session-replay -- <transcript.jsonl>` measures savings over a whole recorded session
+  rather than per tool result. Each saving is charged once per API call that followed it, up to
+  the next compaction, because that is how often the context carried it — and the total is set
+  against the input the API actually reported. It runs in a scratch copy of `.orvix/`, so a
+  replay never disturbs a live session's memory in the same project.
+- `orvix mcp [path]` serves the index over the Model Context Protocol on stdio, for agents that
+  have no hooks. Six tools — `map`, `show`, `find`, `who_calls`, `calls`, `impact` — each the
+  matching command unchanged, so an answer over MCP is the answer on the command line. A failed
+  lookup comes back as a tool error carrying its explanation, so the model sees "try find"
+  rather than the client seeing a protocol failure. Written against the protocol directly; no
+  new dependency.
+- `orvix diff [ref]` lists what changed since a git ref symbol by symbol — added, removed, new
+  signature, body only — with the callers of every changed signature and the files still naming
+  every removed symbol. Tracked changes, deletions and untracked files are covered; the index's
+  own ignore rules apply. Both versions go through the same extraction as indexing, so a symbol
+  is matched across them by id. On this repository, the diff between two branches that `git
+  diff` prints as 2 900 changed lines comes to about 12 kB.
+- Calls through a receiver are resolved by its declared type, where the source states one: a
+  typed parameter, local or field (`r: Repo`, `Repo r`), `new Repo()` and `var r = new Repo()`,
+  `this` and `self`, and `this.field`. A declared type is evidence in the way an import is, so
+  this keeps the rule that resolution never guesses; nothing is inferred beyond the declaration,
+  and a type with no such method — an inherited one — falls back to the old rules. TypeScript,
+  JavaScript, Java, C#, Python and C++ (methods defined in the class body). Measured on the same
+  projects as 0.2.0: gson resolves 35.6% of call sites (from 24.3%) with 22.0% ambiguous (from
+  33.3%); Newtonsoft.Json 32.1% (from 27.5%) with 54.2% ambiguous (from 58.5%); fmt 27.0% (from
+  26.5%), whose methods are mostly defined out of line. On gson it adds 1 908 edges and removes
+  65, and every removed edge checked was wrong: `delegate.read()` on a field declared
+  `TypeAdapter` had been linked to a same-named method in the same file.
+- Calls dispatched through a channel name are linked, in TypeScript and JavaScript: a dispatch
+  (`emit`, `send`, `invoke`, `publish`, …) reaches every handler registered on the same literal
+  channel (`on`, `once`, `handle`, `subscribe`, …), so `who-calls` and `impact` can cross an
+  IPC or event boundary. These links are weaker evidence than a call and are kept apart, in
+  `graph.dispatch`, and always shown with their channel: `⇢ via "config:get"`. Channel names too
+  common to mean one thing (`data`, `error`, `close`, `click`, …) are ignored, a handler must
+  resolve to exactly one named function, and a channel is matched only within one package — a
+  monorepo's examples reuse channel names, as socket.io's do. On socket.io itself this draws no
+  link: its handlers are inline or destructured, which a syntactic match cannot follow, and that
+  is the limit to expect.
+- `orvix replace <id> [--file f] [--write]`, experimental, swaps one symbol's source for new text
+  read from a file or stdin — the counterpart of `show`, without handing an edit tool the old
+  text back. It is the only command that writes, so nothing is written without `--write`; the
+  symbol is located in the file as it is on disk, never at the offsets the index recorded; a
+  replacement that leaves the file unable to parse is refused; and after writing it reports the
+  callers a new signature leaves behind, as the edit hook does. Not in the agent instruction
+  block until it has been used on real sessions.
+- Calls made at file scope are now part of the graph, as `fileCallers`. Every call inside
+  `test(() => …)` sits in an anonymous callback and so belongs to no symbol; before this, no test
+  file was ever seen to reach anything. The projection version moves to 3, so existing caches are
+  rebuilt on the next `orvix index`.
+
+### Fixed
+
+- A declaration inside a block at file scope — the body of a top-level `try`, `if` or bare
+  `{ }` — was indexed as a module symbol, though nothing outside the block can name it. Every
+  hook script's `const input` showed up in the map this way; 15 such symbols on this repository.
+  A namespace's body is a block too, and its members are still indexed. The facts cache version
+  moves to 3, so every file is reparsed once rather than keeping facts extracted by the old rule.
+- Edits to Java, C#, C++ and C files were never marked dirty, so queries answered from the stale
+  index until the turn ended. The dirty hook's extension list stopped at Rust, and so did the
+  agent instruction block, which told agents to read those files directly.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added

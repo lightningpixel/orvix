@@ -4,7 +4,7 @@ import type { OrvixIndex, PersistedGraph, SymbolTable } from "../types.js";
 import { PROJECTION_VERSION, serialise, type Projection } from "./project.js";
 
 /** Bump whenever the stored shape changes; older caches are then discarded. */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 
 export const CACHE_DIR = ".orvix";
 
@@ -48,9 +48,11 @@ export function emptyGraph(): PersistedGraph {
     version: PROJECTION_VERSION,
     callers: {},
     callees: {},
+    fileCallers: {},
     refsByName: {},
     exportSig: {},
     ambiguous: [],
+    dispatch: {},
     unresolvedByFile: {},
     unresolved: 0,
   };
@@ -85,7 +87,7 @@ export async function loadGraph(root: string): Promise<PersistedGraph> {
   );
   if (!graph) return emptyGraph();
 
-  harden(graph, ["callers", "callees", "refsByName", "exportSig"]);
+  harden(graph, ["callers", "callees", "fileCallers", "refsByName", "exportSig", "dispatch"]);
   return graph;
 }
 

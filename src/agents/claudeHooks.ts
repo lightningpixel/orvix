@@ -33,7 +33,7 @@ const SCRIPT = (name: string) =>
   `node "$CLAUDE_PROJECT_DIR/.claude/hooks/${name}"`;
 
 /**
- * The three hooks, and why each is registered the way it is.
+ * The hooks, and why each is registered the way it is.
  *
  * Both `async` hooks do work nobody is waiting on, so they are kept off the
  * turn's critical path entirely. The compressor cannot be async: it has to
@@ -49,6 +49,13 @@ export function orvixHooks(): Record<string, HookMatcher[]> {
         hooks: [{ type: "command", command: SCRIPT("orvix-dirty.mjs"), async: true }],
       },
       {
+        // Synchronous, unlike orvix-dirty beside it: a warning about broken
+        // callers is only useful before the model moves on to the next file.
+        matcher: "Edit|Write|MultiEdit",
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-impact.mjs"), timeout: 10 }],
+      },
+      {
         // Bash is here because half of real searches are `rg` or `grep` run
         // through the shell rather than the native tool, and those were going
         // past uncompressed. Glob is not: it returns bare paths with no line
@@ -57,6 +64,22 @@ export function orvixHooks(): Record<string, HookMatcher[]> {
         matcher: "Read|Grep|Bash",
         [HOOK_MARKER]: true,
         hooks: [{ type: "command", command: SCRIPT("orvix-compress.mjs"), timeout: 10 }],
+      },
+    ],
+    UserPromptSubmit: [
+      {
+        // Synchronous for the same reason as the compressor: the map has to
+        // arrive with the prompt, or the model has already gone searching.
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-focus.mjs"), timeout: 10 }],
+      },
+    ],
+    PreCompact: [
+      {
+        // After compaction the model no longer holds what it read, so the
+        // compressor must stop saying it does.
+        [HOOK_MARKER]: true,
+        hooks: [{ type: "command", command: SCRIPT("orvix-compact.mjs"), timeout: 10 }],
       },
     ],
     Stop: [

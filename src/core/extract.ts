@@ -11,6 +11,8 @@ import type {
 import { queryIdOf, type LanguageDef } from "./languages.js";
 import { loadLanguage, parse } from "./parser.js";
 import { queriesDir } from "./paths.js";
+import { channelSite, type RawChannelSite } from "./channels.js";
+import { ReceiverTypes, THIS } from "./receivers.js";
 
 /** Kinds that other definitions can be nested inside. */
 const CONTAINER_KINDS = new Set<SymbolKind>(["class", "interface", "enum"]);
@@ -132,6 +134,8 @@ function collect(
   const symbols: RawSymbol[] = [];
   const pendingRefs: Array<Omit<RawReference, "fromSymbol">> = [];
   const imports: RawImport[] = [];
+  const types = new ReceiverTypes(tree.rootNode, def.id);
+  const sites: RawChannelSite[] = [];
 
   for (const match of query.matches(tree.rootNode)) {
     const named = match.captures.find((c) => c.name === "name")?.node;
@@ -146,11 +150,16 @@ function collect(
     if (!named) continue;
 
     if (tagged.name === "reference.call" || tagged.name === "reference.method") {
+      const viaMember = tagged.name === "reference.method";
+      const site = viaMember ? channelSite(named, tagged.node, def.id) : undefined;
+      if (site) sites.push(site);
+      const receiver = viaMember ? types.receiverOf(named) : undefined;
       pendingRefs.push({
         name: named.text,
         line: named.startPosition.row + 1,
         byte: named.startIndex,
-        viaMember: tagged.name === "reference.method",
+        viaMember,
+        ...(receiver ? { receiver } : {}),
       });
       continue;
     }
@@ -185,9 +194,26 @@ function collect(
 
   const references: RawReference[] = pendingRefs
     .sort((a, b) => a.byte - b.byte)
-    .map((ref) => ({ ...ref, fromSymbol: enclosingIndex(kept, ref.byte) }));
+    .map((ref) => withThisResolved({ ...ref, fromSymbol: enclosingIndex(kept, ref.byte) }, kept));
 
-  return { symbols: kept, references, imports };
+  const channels = sites
+    .sort((a, b) => a.byte - b.byte)
+    .map((site) => ({ ...site, fromSymbol: enclosingIndex(kept, site.byte) }));
+
+  return { symbols: kept, references, imports, ...(channels.length > 0 ? { channels } : {}) };
+}
+
+/**
+ * Turns a `this` receiver into the class it is written in. Outside any class —
+ * a C++ method defined out of line, say — there is no container to name, and
+ * the receiver is dropped rather than guessed.
+ */
+function withThisResolved(ref: RawReference, symbols: RawSymbol[]): RawReference {
+  if (ref.receiver !== THIS) return ref;
+  const { receiver: _, ...rest } = ref;
+  const enclosing = ref.fromSymbol === null ? undefined : symbols[ref.fromSymbol];
+  const container = enclosing && CONTAINER_KINDS.has(enclosing.kind) ? enclosing.name : enclosing?.container;
+  return container ? { ...rest, receiver: container } : rest;
 }
 
 /** True when the declaration sits inside a function body rather than at file or class scope. */
@@ -197,9 +223,24 @@ function isLocal(node: Node, languageId: string): boolean {
 
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
     if (scopes.has(ancestor.type)) return true;
+    if (isLocalBlock(ancestor, languageId)) return true;
   }
 
   return false;
+}
+
+const ECMASCRIPT = new Set(["typescript", "tsx", "javascript"]);
+
+/**
+ * A block at file scope — the body of a top-level `try`, `if` or bare `{ }` —
+ * holds block-scoped names that nothing outside it can reach. A namespace's
+ * body is a block in the grammar too, but its members are the namespace's
+ * surface, so that one is kept.
+ */
+function isLocalBlock(node: Node, languageId: string): boolean {
+  if (!ECMASCRIPT.has(languageId) || node.type !== "statement_block") return false;
+  const parent = node.parent?.type;
+  return parent !== "internal_module" && parent !== "module";
 }
 
 /**

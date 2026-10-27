@@ -45,7 +45,7 @@ describe("upsertHooks", () => {
   test("adds the hooks to an empty settings file", () => {
     const merged = upsertHooks({});
 
-    expect(Object.keys(merged.hooks!)).toEqual(["PostToolUse", "Stop"]);
+    expect(Object.keys(merged.hooks!)).toEqual(["PostToolUse", "UserPromptSubmit", "PreCompact", "Stop"]);
   });
 
   test("is idempotent", () => {
@@ -114,7 +114,7 @@ describe("upsertHooks", () => {
     );
 
     expect(commands).not.toContain("node old-path.mjs");
-    expect(commands).toHaveLength(2);
+    expect(commands).toHaveLength(orvixHooks()["PostToolUse"]!.length);
   });
 
   test("drops an orvix entry on an event it no longer registers", () => {

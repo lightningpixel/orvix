@@ -49,29 +49,64 @@ export function rankSymbols(
   }
   for (const [id, weight] of restart) restart.set(id, weight / totalWeight);
 
-  let ranks = new Map(symbols.map((symbol) => [symbol.id, 1 / symbols.length]));
+  return pagerank(
+    {
+      ids: symbols.map((symbol) => symbol.id),
+      restart,
+      inbound: (id) => graph.callers.get(id) ?? [],
+      outDegree: (id) => graph.callees.get(id)?.size ?? 0,
+    },
+    damping,
+    iterations,
+  );
+}
+
+/** A random walk over symbols, described by who passes rank to whom. */
+export interface Walk {
+  ids: readonly string[];
+  /** Where the walk lands when it does not follow an edge; sums to 1. */
+  restart: ReadonlyMap<string, number>;
+  /** The symbols whose rank flows into this one. */
+  inbound: (id: string) => Iterable<string>;
+  /** How many symbols this one passes its rank on to. */
+  outDegree: (id: string) => number;
+}
+
+/**
+ * Personalised PageRank by power iteration.
+ *
+ * Shared by the index-time ranking and by the focused map, which differ only
+ * in their restart vector and in which way the edges point.
+ */
+export function pagerank(
+  walk: Walk,
+  damping: number = DEFAULTS.damping,
+  iterations: number = DEFAULTS.iterations,
+): Map<string, number> {
+  const { ids, restart, inbound, outDegree } = walk;
+  let ranks = new Map(ids.map((id) => [id, 1 / ids.length]));
 
   for (let round = 0; round < iterations; round += 1) {
     const next = new Map<string, number>();
 
-    // Symbols that call nothing would leak rank out of the system; their mass
-    // is redistributed over the restart vector instead.
+    // Symbols that pass rank to nothing would leak it out of the system; their
+    // mass is redistributed over the restart vector instead.
     let dangling = 0;
     for (const [id, rank] of ranks) {
-      if ((graph.callees.get(id)?.size ?? 0) === 0) dangling += rank;
+      if (outDegree(id) === 0) dangling += rank;
     }
 
-    for (const symbol of symbols) {
-      const teleport = restart.get(symbol.id)!;
+    for (const id of ids) {
+      const teleport = restart.get(id) ?? 0;
       let inflow = 0;
 
-      for (const caller of graph.callers.get(symbol.id) ?? []) {
-        const outDegree = graph.callees.get(caller)?.size ?? 0;
-        if (outDegree > 0) inflow += (ranks.get(caller) ?? 0) / outDegree;
+      for (const source of inbound(id)) {
+        const degree = outDegree(source);
+        if (degree > 0) inflow += (ranks.get(source) ?? 0) / degree;
       }
 
       next.set(
-        symbol.id,
+        id,
         (1 - damping) * teleport + damping * (inflow + dangling * teleport),
       );
     }

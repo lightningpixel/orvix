@@ -53,11 +53,15 @@ Indexes TypeScript, TSX, JavaScript, Python, Go, Rust, Java, C#, C++ and C.
 |---|---|
 | `orvix init [path]` | Set a project up for agents |
 | `orvix index [path]` | Build or refresh the cache |
-| `orvix map [path]` | The symbol tree, ranked, fitted to `--budget` |
+| `orvix map [path]` | The symbol tree, ranked, fitted to `--budget`; `--focus` centres it on a task |
 | `orvix show <id\|name>` | The exact source of one symbol |
 | `orvix find <query>` | Search symbols by name or signature |
 | `orvix who-calls <id\|name>` | Everything that calls this symbol |
 | `orvix calls <id\|name>` | Everything this symbol calls |
+| `orvix impact <id\|name>` | Everything that reaches it, nearest first, and the test files to run |
+| `orvix diff [ref]` | What changed since a git ref, symbol by symbol, and who depends on it |
+| `orvix replace <id\|name>` | Swap one symbol's source for new text — experimental, needs `--write` |
+| `orvix mcp [path]` | Serve all of the above over the Model Context Protocol |
 | `orvix gain [path]` | Tokens the hooks have saved |
 
 Every command takes `--json`. Queries answer from the prebuilt index and never parse on their
@@ -75,45 +79,94 @@ the right symbol. Renaming or moving it does.
 
 Ids show four characters wide and resolve by prefix, like git hashes.
 
+### A map for the task, not the project
+
+```console
+$ orvix map --focus parse --budget 400
+```
+
+`--focus` takes ids, names or files and restarts the ranking at them, walking call edges both
+ways: a parser's private caller now outranks a busy exported surface that has nothing to do with
+it. The budget is honoured exactly as before.
+
+### Before and after a change
+
+`orvix impact <id>` walks up the callers and groups them by distance, then lists the test files
+among them — including tests whose calls sit in an anonymous `test(() => …)` callback, which
+belong to no symbol and are tracked per file. It only follows edges the graph drew, so it is a
+floor on the blast radius, never an inflated one.
+
+`orvix diff [ref]` compares the working tree with a git ref symbol by symbol: `+` added, `-`
+removed, `~` new signature with the callers still using the old one, `·` body only. On this
+repository, a branch that `git diff` prints as 131 kB comes to 12 kB.
+
 ## Claude Code
 
 Writing instructions into `CLAUDE.md` and hoping they are honoured only goes so far. `orvix init`
-also installs three hooks and registers them, merging with whatever is already in
+also installs six hooks and registers them, merging with whatever is already in
 `.claude/settings.json`.
 
 | Hook | When | What it does |
 |---|---|---|
+| `orvix-focus` | a prompt is submitted | Attaches a map centred on the code the prompt names. |
+| `orvix-compress` | after `Read`, `Grep`, `Bash` | Replaces the result with its symbol map, or a re-read with what changed. |
+| `orvix-impact` | after `Edit`, `Write` | Names the callers a changed signature or a removed symbol leaves behind. |
 | `orvix-dirty` | after `Edit`, `Write` | Marks the file dirty. Async, so it costs the turn nothing. |
-| `orvix-compress` | after `Read`, `Grep`, `Bash` | Replaces the result with its symbol map before the model sees it. |
+| `orvix-compact` | before compaction | Clears the session's memory of what it has read. |
 | `orvix-reconcile` | when the turn ends | Full reindex in the background, as a safety net. |
 
-Nothing here asks the model to cooperate — the compression hook reads `.orvix/symbols.json`
-directly and never runs an `orvix` command. The scripts are plain `.mjs` with no imports beyond
+Nothing here asks the model to cooperate. The scripts are plain `.mjs` with no imports beyond
 `node:*`, so they port to any agent that can run a script and speak JSON on stdin.
 
-Both compressions are on by default. To turn one off without touching your agent's config:
+**The hooks act before the model asks.** A hook can only react to an event, but the right events
+are enough. When a prompt names `parseSource` or `src/parser.ts`, the model starts with that
+neighbourhood in front of it instead of running `ls` and `grep`. Only words that look like code
+count — camelCase, snake_case, `Service.validate`, a path, anything in backticks — so "run the map
+again" focuses on nothing. When an edit changes a signature, the callers it breaks arrive with the
+edit's result, before the model moves on; a body-only edit keeps every id and prints nothing.
+
+**Re-reads cost a line.** The compression hook remembers which files this session has been sent
+in full. Reading one again unchanged returns a note that its text is already in context; after a
+small edit, only the changed lines. Asking again after either gets the whole file, and compaction
+clears the memory, because after it the model no longer holds what it read.
+
+Everything is on by default, and each part has its switch:
 
 ```jsonc
 // .orvix/config.json
-{ "compressRead": false, "compressSearch": true }
+{
+  "compressRead": true,     // a long file read becomes its symbol map
+  "compressSearch": true,   // search hits become the symbols containing them
+  "rememberReads": true,    // re-reads answered from the session's memory
+  "focusPrompt": true,      // a focused map with each prompt that names code
+  "focusBudget": 800,       // its size, in tokens
+  "editImpact": true        // broken callers reported after an edit
+}
 ```
 
-**What hooks cannot do is create initiative.** A hook only reacts to a tool call the model already
-decided to make, so `orvix who-calls` before a signature change still depends on the instruction
-block. Compression is mechanical; navigation is a recommendation.
+## Other agents: MCP
+
+`orvix mcp [path]` serves the index over the Model Context Protocol on stdio, for agents without
+hooks. Its tools are the query commands unchanged — `map`, `show`, `find`, `who_calls`, `calls`,
+`impact` — so an answer over MCP is the answer on the command line.
+
+```jsonc
+// e.g. .cursor/mcp.json, or any client's equivalent
+{ "mcpServers": { "orvix": { "command": "orvix", "args": ["mcp", "."] } } }
+```
 
 ## Numbers
 
-Every figure comes from a command in this repository, measured on Orvix's own source — 75 files,
-405 symbols, 1 201 call edges, 0 call sites too ambiguous to link — on Windows with Node 24.
+Every figure comes from a command in this repository, measured on Orvix's own source — 104 files,
+569 symbols, 1 747 call edges, 0 call sites too ambiguous to link — on Windows with Node 24.
 Re-run them; they will differ on your machine.
 
 **Reading one symbol instead of one file** — `npm run measure`
 
 | Task | Reading files | With orvix | Saved |
 |---|---|---|---|
-| Target one function to edit it | ~2,032 | ~235 | **88%** |
-| Take in the whole project's shape | ~35,199 | ~1,994 | **94%** |
+| Target one function to edit it | ~2,550 | ~235 | **91%** |
+| Take in the whole project's shape | ~53,312 | ~2,000 | **96%** |
 
 **What the hooks actually replace** — `npm run benchmark`
 
@@ -125,9 +178,9 @@ an empty string would score perfectly. This runs in CI on every commit.
 **Query latency** — `npm run bench`
 
 ```
-node floor      55.6 ms      ← nothing here can go below this
-orvix overhead  27.2 ms
-query total     82.9 ms
+node floor      34.3 ms      ← nothing here can go below this
+orvix overhead  17.9 ms
+query total     52.2 ms
 ```
 
 Node's own startup is two thirds of it. That ceiling is why the query path carries no CLI
@@ -139,16 +192,16 @@ only part Orvix controls. A test asserts the query bundle imports neither `comma
 
 | files | `orvix index` | `orvix show` |
 |---|---|---|
-| 100 | 558 ms | 87 ms |
-| 500 | 1 297 ms | 94 ms |
-| 2 000 | 4 522 ms | 147 ms |
+| 100 | 596 ms | 57 ms |
+| 500 | 988 ms | 61 ms |
+| 2 000 | 2 834 ms | 88 ms |
 
 Indexing grows with the project, as it must. A query grows far more slowly — 20× the files costs
 under 2× the query — because a lookup reads only the symbol table and never the call sites.
 
 **Correctness** — `npm test`
 
-395 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
+529 tests. The load-bearing one asserts that after a run of randomised edits, the incrementally
 updated index is **byte-identical** to indexing the project from scratch.
 
 ### Read these fairly
@@ -168,18 +221,30 @@ distinguished from functions and no edge drawn when the answer is ambiguous.
 ## What the call graph does not know
 
 Resolution is **syntactic**. Tree-sitter reports names and imports, not types, so a call is
-matched to a definition in this order: same file, then through an import, then a project-wide
-unique exported name — never across a language family.
+matched to a definition in this order: the receiver's declared type, then the same file, then
+through an import, then a project-wide unique exported name — never across a language family.
 
-- **Calls dispatched through a string are invisible.** An IPC channel, an event name, a route
-  table, a DI container: the caller names a string and the framework finds the target, so there is
-  no call to see. `who-calls` on a function behind such a boundary returns only the callers on its
-  own side of it.
+- **A receiver's type is used only where the source declares it.** `r: Repo`, `Repo r`,
+  `new Repo()`, `var r = new Repo()`, `this`, `self` and `this.field` are read; return
+  types, generics and flow are not, so `make().save()` stays unresolved. Measured on the
+  projects 0.2.0 was measured on:
+
+  | Project | Resolved | Refused as ambiguous |
+  |---|---|---|
+  | gson (Java) | 35.6% (was 24.3%) | 22.0% (was 33.3%) |
+  | Newtonsoft.Json (C#) | 32.1% (was 27.5%) | 54.2% (was 58.5%) |
+  | fmt (C++) | 27.0% (was 26.5%) | 30.0% (was 30.5%) |
+
+  fmt barely moves because its methods are defined out of line (`void S::f()`), where there is
+  no class to name. Go and Rust are not covered yet: their methods carry no container, and giving
+  them one would change their ids.
+- **Calls dispatched through a string are matched only on literal channel names**, in TypeScript
+  and JavaScript: `emit`/`send`/`invoke` on one side, `on`/`handle`/`subscribe` with a named
+  handler on the other, within one package. These links are kept apart and shown as
+  `⇢ via "channel"`. Inline handlers, computed channel names, route tables and DI containers
+  remain invisible, and on real projects inline handlers are the common case.
 - **Type references are not call edges**, so an interface reports no callers. Ranking compensates
   by biasing toward exported symbols.
-- **A call through a receiver on a typed object cannot be attributed** — `x.Get(…)` needs the type
-  of `x`. This makes the graph thinner in Java, C# and C++, where most calls take that form, than
-  in C, Go or TypeScript. `map`, `show` and `find` are unaffected.
 - Import following is implemented for ECMAScript module paths; the other languages rely on
   same-file scope and project-unique names.
 

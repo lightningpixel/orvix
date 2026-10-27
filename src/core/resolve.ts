@@ -27,6 +27,14 @@ export interface CallGraph {
   callers: Map<string, Set<string>>;
   /** caller id -> distinct callee ids. */
   callees: Map<string, Set<string>>;
+  /**
+   * callee id -> files that call it from file scope.
+   *
+   * A call inside `test(() => …)` belongs to no symbol, so it never becomes a
+   * caller edge. Without this, a test file would never be seen to reach
+   * anything, which is exactly what `orvix impact` needs to know.
+   */
+  fileCallers: Map<string, Set<string>>;
   ambiguous: AmbiguousCall[];
   /** Call sites naming something the project does not define. */
   unresolved: number;
@@ -89,12 +97,14 @@ export function buildCallGraph(
     edges: [],
     callers: new Map(),
     callees: new Map(),
+    fileCallers: new Map(),
     ambiguous: [],
     unresolved: 0,
     unresolvedByFile: new Map(),
   };
 
   const exportedByName = groupExportedByName(index);
+  const methodsByName = groupMethodsByName(index);
 
   for (const [file, entry] of Object.entries(index.files)) {
     if (options.only && !options.only.has(file)) continue;
@@ -125,7 +135,30 @@ export function buildCallGraph(
         .get(reference.name)
         ?.filter((symbol) => familyForPath(symbol.file) === family);
 
+      // A declared receiver type comes first: it names the class outright.
+      // When that class has no such method — an inherited one, a type from a
+      // library — the call is resolved exactly as if no type were known.
+      const typed = reference.receiver
+        ? methodsByName
+            .get(reference.name)
+            ?.filter(
+              (symbol) =>
+                symbol.container === reference.receiver &&
+                familyForPath(symbol.file) === family,
+            )
+        : undefined;
+
+      // Several classes can share the declared name — nested builders above
+      // all — so the usual order applies within it: this file, then imports.
+      const typedInFile = typed?.filter((symbol) => symbol.file === file);
+      const typedImported = typed?.filter((symbol) =>
+        imported.get(reference.name)?.includes(symbol),
+      );
+
       const candidates =
+        (typedInFile && typedInFile.length > 0 ? typedInFile : undefined) ??
+        (typedImported && typedImported.length > 0 ? typedImported : undefined) ??
+        (typed && typed.length > 0 ? typed : undefined) ??
         reachable(local.get(reference.name)) ??
         reachable(imported.get(reference.name)) ??
         reachable(projectWide);
@@ -153,6 +186,8 @@ export function buildCallGraph(
       if (from !== null) {
         addTo(graph.callers, to, from);
         addTo(graph.callees, from, to);
+      } else {
+        addTo(graph.fileCallers, to, file);
       }
     }
   }
@@ -170,7 +205,7 @@ function addTo(
   else map.set(key, new Set([value]));
 }
 
-function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
+export function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
   const grouped = new Map<string, IndexedSymbol[]>();
 
   for (const symbol of symbols) {
@@ -182,7 +217,15 @@ function groupByName(symbols: IndexedSymbol[]): Map<string, IndexedSymbol[]> {
   return grouped;
 }
 
-function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
+function groupMethodsByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
+  return groupByName(
+    Object.values(index.files).flatMap((entry) =>
+      entry.symbols.filter((symbol) => symbol.kind === "method"),
+    ),
+  );
+}
+
+export function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
   const exported = Object.values(index.files).flatMap((entry) =>
     entry.symbols.filter((symbol) => symbol.exported),
   );
@@ -191,7 +234,7 @@ function groupExportedByName(index: OrvixIndex): Map<string, IndexedSymbol[]> {
 }
 
 /** Names this file imports, mapped to the definitions they point at. */
-function importedSymbols(
+export function importedSymbols(
   index: OrvixIndex,
   file: string,
   entry: FileEntry,

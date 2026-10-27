@@ -4,12 +4,13 @@ import type {
   PersistedGraph,
   SymbolTable,
 } from "../types.js";
+import { buildDispatch } from "./dispatch.js";
 import { hashIdentity } from "./ids.js";
 import { qualifiedName } from "./symbols.js";
 import type { CallGraph } from "./resolve.js";
 
 /** Bump whenever the projected shape changes; older caches are then discarded. */
-export const PROJECTION_VERSION = 2;
+export const PROJECTION_VERSION = 3;
 
 /**
  * Most files that may reference one name before the name is called "wide".
@@ -43,6 +44,8 @@ export function projectIndex(
   index: OrvixIndex,
   graph: CallGraph,
   ranks: Map<string, number>,
+  /** Nearest package of a file, from packages.ts; one package when omitted. */
+  packageOf?: (file: string) => string,
 ): Projection {
   // Prototype-free throughout: symbol names come from real source, and
   // `constructor`, `toString` and `valueOf` are ordinary method names. On a
@@ -90,6 +93,7 @@ export function projectIndex(
       version: PROJECTION_VERSION,
       callers: fromSets(graph.callers),
       callees: fromSets(graph.callees),
+      fileCallers: fromSets(graph.fileCallers),
       refsByName,
       exportSig,
       // Sorted so a partial rebuild, which appends its own findings to the
@@ -98,6 +102,7 @@ export function projectIndex(
         (a, b) =>
           a.file.localeCompare(b.file) || a.line - b.line || a.name.localeCompare(b.name),
       ),
+      dispatch: buildDispatch(index, packageOf),
       unresolvedByFile: Object.fromEntries(graph.unresolvedByFile),
       unresolved: [...graph.unresolvedByFile.values()].reduce(
         (total, count) => total + count,

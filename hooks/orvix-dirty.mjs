@@ -15,11 +15,20 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 
-/** Extensions Orvix can index. Anything else is not worth a dirty entry. */
+/**
+ * Extensions Orvix can index. Anything else is not worth a dirty entry.
+ *
+ * A copy of src/core/languages.ts, because a hook may import nothing but
+ * node:*. A test compares the two, so adding a language without updating this
+ * list fails the suite instead of silently leaving its edits unmarked.
+ */
 const INDEXED = new Set([
   ".ts", ".mts", ".cts", ".tsx",
   ".js", ".jsx", ".mjs", ".cjs",
   ".py", ".pyi", ".go", ".rs",
+  ".java", ".cs",
+  ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx",
+  ".c", ".h",
 ]);
 
 function readStdin() {
